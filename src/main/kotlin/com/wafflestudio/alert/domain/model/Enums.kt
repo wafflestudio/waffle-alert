@@ -1,5 +1,19 @@
 package com.wafflestudio.alert.domain.model
 
-// TODO: AlertSource(ALERTMANAGER, OCI_COST, OCI_MONITORING)
-//       AlertStatus(FIRING, RESOLVED, REPEATED)
-//       Severity(INFO, WARNING, CRITICAL)
+enum class AlertSource {
+    ALERTMANAGER,
+    OCI_COST,
+    OCI_MONITORING,
+}
+
+enum class AlertStatus {
+    FIRING,
+    RESOLVED,
+    REPEATED,
+}
+
+enum class Severity {
+    INFO,
+    WARNING,
+    CRITICAL,
+}
