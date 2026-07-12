@@ -45,6 +45,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
+    // ── API 문서 (로컬에서 Swagger UI로 컨트롤러 테스트) ─
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
+
     // ── 운영 (헬스체크/메트릭 노출) ──────────────────
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
