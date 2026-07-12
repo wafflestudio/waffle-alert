@@ -7,6 +7,6 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConfigurationProperties(prefix = "discord")
 class DiscordProperties {
-    lateinit var botToken: String
+    var botToken: String = ""
     var channelIds: Map<String, String> = emptyMap()
 }
