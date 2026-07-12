@@ -1,5 +1,16 @@
 package com.wafflestudio.alert.domain.service
 
-// TODO: 두 입력 경로(webhook / OCI scheduler)의 합류점
-//   AlertEvent -> IncidentService.upsert -> AlertEventLog 기록
-//   -> RoutingPolicy로 채널/팀 결정 -> NotificationPort 전송
+import com.wafflestudio.alert.domain.model.AlertEvent
+import com.wafflestudio.alert.outbound.notification.NotificationPort
+import org.springframework.stereotype.Service
+
+// TODO: Incident/EventLog 구조 설계 필요
+//   AlertEvent -> IncidentService.upsert -> AlertEventLog 기록 -> ingest() 앞단에 추가
+@Service
+class AlertIngestionService(
+    private val notificationPort: NotificationPort,
+) {
+    fun ingest(event: AlertEvent) {
+        notificationPort.notify(event)
+    }
+}

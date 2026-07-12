@@ -1,7 +1,8 @@
 package com.wafflestudio.alert.outbound.notification.routing
 
-/** Discord 서버에 등록된 멘션용 role. roleId로 `<@&roleId>` 멘션 문자열을 만든다. */
 /**
+ * Discord 서버에 등록된 멘션용 role. roleId로 `<@&roleId>` 멘션 문자열을 만든다.
+ *
  * TODO 각 팀별 이름 - roleId 추가해야함
  */
 enum class DiscordMentionRole(

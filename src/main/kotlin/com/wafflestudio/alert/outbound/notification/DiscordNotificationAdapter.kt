@@ -34,8 +34,9 @@ class DiscordNotificationAdapter(
             AlertSource.OCI_MONITORING -> "oci-monitoring"
         }
 
-    /** team 문자열 -> 멘션할 Discord role 고정 매핑. 매핑 안 되는 team은 멘션 없이 보낸다. */
     /**
+     * team 문자열 -> 멘션할 Discord role 고정 매핑. 매핑 안 되는 team은 멘션 없이 보낸다.
+     *
      * TODO : 각 팀별 roleID 넣어놔야함
      */
     private fun mentionRoleOf(team: String?): DiscordMentionRole? =
