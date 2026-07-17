@@ -1,0 +1,111 @@
+package com.wafflestudio.alert.source.scheduler
+
+import com.wafflestudio.alert.domain.evaluator.OciResourceEvaluator
+import com.wafflestudio.alert.domain.model.MetricKind
+import com.wafflestudio.alert.domain.model.MetricObservation
+import com.wafflestudio.alert.domain.model.MetricProvider
+import com.wafflestudio.alert.domain.model.MetricStatistic
+import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.service.AlertIngestionService
+import com.wafflestudio.alert.source.oci.OciMonitoringAdapter
+import com.wafflestudio.alert.source.oci.OciMonitoringProperties
+import com.wafflestudio.alert.source.oci.OciMysqlDbSystemProperties
+import com.wafflestudio.alert.source.oci.OciMysqlMetricQuery
+import com.wafflestudio.alert.source.oci.OciMysqlMonitoringProperties
+import com.wafflestudio.alert.source.oci.OciMysqlThresholdProperties
+import com.wafflestudio.alert.source.oci.OciThresholdProperties
+import io.mockk.Runs
+import io.mockk.every
+import io.mockk.just
+import io.mockk.mockk
+import io.mockk.verify
+import java.time.Instant
+import kotlin.test.Test
+
+class OciMonitoringSchedulerTest {
+    private val adapter = mockk<OciMonitoringAdapter>()
+    private val evaluator = OciResourceEvaluator()
+    private val ingestionService = mockk<AlertIngestionService>()
+
+    @Test
+    fun `polls enabled db systems and sends firing events to ingestion`() {
+        val enabledDbSystem = dbSystem(enabled = true)
+        val disabledDbSystem = dbSystem(id = "disabled", enabled = false)
+        val observation = observation(value = 1.5)
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation)
+        every { ingestionService.ingest(any()) } just Runs
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(listOf(enabledDbSystem, disabledDbSystem)),
+        ).poll()
+
+        verify(exactly = 1) {
+            adapter.fetchMysqlCpuUtilization(
+                OciMysqlMetricQuery(
+                    compartmentId = enabledDbSystem.compartmentId,
+                    dbSystemId = enabledDbSystem.id,
+                    window = properties().queryWindow,
+                    resolution = properties().resolution,
+                ),
+            )
+        }
+        verify(exactly = 1) { ingestionService.ingest(any()) }
+    }
+
+    @Test
+    fun `does not send an event when evaluator considers observation normal`() {
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation(value = 0.5))
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(listOf(dbSystem(enabled = true))),
+        ).poll()
+
+        verify(exactly = 0) { ingestionService.ingest(any()) }
+    }
+
+    private fun properties(
+        dbSystems: List<OciMysqlDbSystemProperties> = listOf(dbSystem()),
+    ): OciMonitoringProperties =
+        OciMonitoringProperties(
+            queryWindow = java.time.Duration.ofMinutes(5),
+            resolution = "1m",
+            mysql = OciMysqlMonitoringProperties(dbSystems),
+        )
+
+    private fun dbSystem(
+        id: String = "ocid1.mysqldbsystem.oc1..example",
+        enabled: Boolean = true,
+    ): OciMysqlDbSystemProperties =
+        OciMysqlDbSystemProperties(
+            id = id,
+            compartmentId = "ocid1.compartment.oc1..example",
+            service = "platform",
+            team = "infra",
+            enabled = enabled,
+            thresholds =
+                OciMysqlThresholdProperties(
+                    cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
+                ),
+        )
+
+    private fun observation(value: Double): MetricObservation =
+        MetricObservation(
+            provider = MetricProvider.OCI,
+            resourceType = "mysql",
+            resourceId = "ocid1.mysqldbsystem.oc1..example",
+            resourceName = "wafflestudio-mysql",
+            metricKind = MetricKind.CPU_UTILIZATION,
+            metricNamespace = "oci_mysql_database",
+            providerMetricName = "CPUUtilization",
+            statistic = MetricStatistic.MEAN,
+            unit = MetricUnit.PERCENT,
+            value = value,
+            observedAt = Instant.parse("2026-07-17T00:00:00Z"),
+        )
+}
