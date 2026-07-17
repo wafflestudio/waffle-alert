@@ -1,12 +1,88 @@
 package com.wafflestudio.alert.domain.evaluator
 
-// TODO: MySQL DB System 6개 rule threshold 판단 -> AlertEvent
-//   - cpu-utilization / memory-utilization / db-volume-utilization: warning 80%, critical 90%
-//   - current-connections: warning 500, critical 800 (count, percentage 아님)
-//   - active-connections: warning 50, critical 100 (count)
-//   - backup-failure: critical 1 (status)
-//   - threshold는 application.yml의 db-system별 thresholds 설정에서 읽음
-//   - fingerprint 포맷: "oci-monitoring:mysql:{dbSystemId}:{ruleName}"
-//     예) oci-monitoring:mysql:ocid1.mysqldbsystem...:cpu-utilization-high
-//   - status는 MVP 범위(FIRING/RESOLVED)만 판단. REPEATED 여부는 이후 IncidentService가 결정
-//   - StatementLatency/Statements/NetworkBytes/DbVolumeReadWriteBytes/BackupTime/BackupSize는 2차로 보류
+import com.wafflestudio.alert.domain.model.AlertEvent
+import com.wafflestudio.alert.domain.model.AlertSource
+import com.wafflestudio.alert.domain.model.AlertStatus
+import com.wafflestudio.alert.domain.model.MetricKind
+import com.wafflestudio.alert.domain.model.MetricObservation
+import com.wafflestudio.alert.domain.model.MetricProvider
+import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.model.Severity
+
+class OciResourceEvaluator {
+    fun evaluateCpuUtilization(
+        observation: MetricObservation,
+        threshold: CpuUtilizationThreshold = CpuUtilizationThreshold(),
+        context: OciAlertContext = OciAlertContext(),
+    ): AlertEvent? {
+        if (!observation.isMysqlCpuUtilization()) {
+            return null
+        }
+
+        val severityAndThreshold =
+            when {
+                observation.value >= threshold.critical -> Severity.CRITICAL to threshold.critical
+                observation.value >= threshold.warning -> Severity.WARNING to threshold.warning
+                else -> return null
+            }
+
+        val (severity, matchedThreshold) = severityAndThreshold
+        val ruleName = CPU_UTILIZATION_RULE
+
+        return AlertEvent(
+            source = AlertSource.OCI_MONITORING,
+            status = AlertStatus.FIRING,
+            severity = severity,
+            fingerprint = "oci-monitoring:mysql:${observation.resourceId}:$ruleName",
+            ruleName = ruleName,
+            title = "MySQL CPU utilization high",
+            description =
+                "${observation.resourceName} CPU utilization is ${observation.value}% " +
+                    "(threshold: $matchedThreshold%).",
+            service = context.service,
+            team = context.team,
+            resourceType = observation.resourceType,
+            resourceId = observation.resourceId,
+            resourceName = observation.resourceName,
+            metricName = observation.providerMetricName,
+            metricStatistic = observation.statistic.name,
+            metricUnit = observation.unit.name,
+            value = observation.value.toString(),
+            threshold = matchedThreshold.toString(),
+            thresholdUnit = observation.unit.name,
+            comparisonOperator = COMPARISON_OPERATOR,
+            observedAt = observation.observedAt,
+            labels = mapOf("provider" to observation.provider.name) + observation.labels,
+            rawPayload = observation.rawPayload,
+        )
+    }
+
+    private fun MetricObservation.isMysqlCpuUtilization(): Boolean =
+        provider == MetricProvider.OCI &&
+            resourceType == MYSQL_RESOURCE_TYPE &&
+            metricKind == MetricKind.CPU_UTILIZATION &&
+            unit == MetricUnit.PERCENT
+
+    companion object {
+        private const val MYSQL_RESOURCE_TYPE = "mysql"
+        private const val CPU_UTILIZATION_RULE = "cpu-utilization-high"
+        private const val COMPARISON_OPERATOR = "GREATER_THAN_OR_EQUAL"
+    }
+}
+
+data class CpuUtilizationThreshold(
+    // Temporary low defaults make local Discord delivery checks easy.
+    val warning: Double = 1.0,
+    val critical: Double = 2.0,
+) {
+    init {
+        require(warning >= 0.0) { "CPU warning threshold must be non-negative" }
+        require(warning < critical) { "CPU warning threshold must be lower than critical threshold" }
+        require(critical <= 100.0) { "CPU critical threshold must not exceed 100" }
+    }
+}
+
+data class OciAlertContext(
+    val service: String? = null,
+    val team: String? = null,
+)
