@@ -54,8 +54,12 @@ class OciResourceEvaluatorTest {
     }
 
     @Test
-    fun `uses temporary low defaults when no threshold is provided`() {
-        val event = evaluator.evaluateCpuUtilization(observation(value = 1.5))
+    fun `uses explicitly configured low thresholds for delivery checks`() {
+        val event =
+            evaluator.evaluateCpuUtilization(
+                observation(value = 1.5),
+                CpuUtilizationThreshold(warning = 1.0, critical = 2.0),
+            )
 
         requireNotNull(event)
         assertEquals(Severity.WARNING, event.severity)

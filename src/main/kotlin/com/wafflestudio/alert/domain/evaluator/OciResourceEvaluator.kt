@@ -12,7 +12,7 @@ import com.wafflestudio.alert.domain.model.Severity
 class OciResourceEvaluator {
     fun evaluateCpuUtilization(
         observation: MetricObservation,
-        threshold: CpuUtilizationThreshold = CpuUtilizationThreshold(),
+        threshold: CpuUtilizationThreshold,
         context: OciAlertContext = OciAlertContext(),
     ): AlertEvent? {
         if (!observation.isMysqlCpuUtilization()) {
@@ -71,9 +71,8 @@ class OciResourceEvaluator {
 }
 
 data class CpuUtilizationThreshold(
-    // Temporary low defaults make local Discord delivery checks easy.
-    val warning: Double = 1.0,
-    val critical: Double = 2.0,
+    val warning: Double,
+    val critical: Double,
 ) {
     init {
         require(warning >= 0.0) { "CPU warning threshold must be non-negative" }
