@@ -47,6 +47,30 @@ class OciResourceEvaluatorTest {
     }
 
     @Test
+    fun `returns a warning firing event when DB volume utilization crosses warning threshold`() {
+        val event =
+            evaluator.evaluateDbVolumeUtilization(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.VOLUME_UTILIZATION,
+                    providerMetricName = "DbVolumeUtilization",
+                ),
+                DbVolumeUtilizationThreshold(warning = 80.0, critical = 90.0),
+            )
+
+        requireNotNull(event)
+        assertEquals(Severity.WARNING, event.severity)
+        assertEquals("db-volume-utilization-high", event.ruleName)
+        assertEquals(
+            "oci-monitoring:mysql:ocid1.mysqldbsystem.oc1..example:db-volume-utilization-high",
+            event.fingerprint,
+        )
+        assertEquals("DbVolumeUtilization", event.metricName)
+        assertEquals("85.0", event.value)
+        assertEquals("80.0", event.threshold)
+    }
+
+    @Test
     fun `does not create an event for a value below warning threshold`() {
         val event = evaluator.evaluateCpuUtilization(observation(value = 75.0), threshold)
 
@@ -77,15 +101,19 @@ class OciResourceEvaluatorTest {
         assertNull(event)
     }
 
-    private fun observation(value: Double): MetricObservation =
+    private fun observation(
+        value: Double,
+        metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
+        providerMetricName: String = "CPUUtilization",
+    ): MetricObservation =
         MetricObservation(
             provider = MetricProvider.OCI,
             resourceType = "mysql",
             resourceId = "ocid1.mysqldbsystem.oc1..example",
             resourceName = "wafflestudio-mysql",
-            metricKind = MetricKind.CPU_UTILIZATION,
+            metricKind = metricKind,
             metricNamespace = "oci_mysql_database",
-            providerMetricName = "CPUUtilization",
+            providerMetricName = providerMetricName,
             statistic = MetricStatistic.MEAN,
             unit = MetricUnit.PERCENT,
             value = value,

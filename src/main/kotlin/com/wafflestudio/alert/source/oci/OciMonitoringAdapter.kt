@@ -18,9 +18,33 @@ class OciMonitoringAdapter(
     private val region: String,
     private val clock: Clock = Clock.systemUTC(),
 ) {
-    fun fetchMysqlCpuUtilization(query: OciMysqlMetricQuery): List<MetricObservation> {
+    fun fetchMysqlCpuUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+        fetchMysqlMetric(
+            query = query,
+            metricName = CPU_UTILIZATION_METRIC,
+            metricKind = MetricKind.CPU_UTILIZATION,
+            unit = MetricUnit.PERCENT,
+            filterByResourceType = true,
+        )
+
+    fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+        fetchMysqlMetric(
+            query = query,
+            metricName = DB_VOLUME_UTILIZATION_METRIC,
+            metricKind = MetricKind.VOLUME_UTILIZATION,
+            unit = MetricUnit.PERCENT,
+            filterByResourceType = false,
+        )
+
+    private fun fetchMysqlMetric(
+        query: OciMysqlMetricQuery,
+        metricName: String,
+        metricKind: MetricKind,
+        unit: MetricUnit,
+        filterByResourceType: Boolean,
+    ): List<MetricObservation> {
         val endTime = clock.instant()
-        val mql = cpuUtilizationMql(query.dbSystemId, query.resolution)
+        val mql = metricMql(metricName, query.dbSystemId, query.resolution, filterByResourceType)
         val response =
             monitoringClient.summarizeMetricsData(
                 SummarizeMetricsDataRequest
@@ -39,12 +63,30 @@ class OciMonitoringAdapter(
                     .build(),
             )
 
-        return response.items.orEmpty().mapNotNull(::toMysqlCpuObservation)
+        return response.items.orEmpty().mapNotNull { metricData ->
+            toMysqlObservation(
+                metricData = metricData,
+                metricKind = metricKind,
+                metricName = metricName,
+                unit = unit,
+                filterByResourceType = filterByResourceType,
+            )
+        }
     }
 
-    private fun toMysqlCpuObservation(metricData: MetricData): MetricObservation? {
+    private fun toMysqlObservation(
+        metricData: MetricData,
+        metricKind: MetricKind,
+        metricName: String,
+        unit: MetricUnit,
+        filterByResourceType: Boolean,
+    ): MetricObservation? {
         val dimensions = metricData.dimensions.orEmpty()
-        if (dimensions[RESOURCE_TYPE_DIMENSION] != MYSQL_RESOURCE_TYPE) {
+        val resourceType = dimensions[RESOURCE_TYPE_DIMENSION]
+        if (filterByResourceType && resourceType != MYSQL_RESOURCE_TYPE) {
+            return null
+        }
+        if (!filterByResourceType && resourceType != null && resourceType != MYSQL_RESOURCE_TYPE) {
             return null
         }
 
@@ -62,14 +104,14 @@ class OciMonitoringAdapter(
 
         return MetricObservation(
             provider = MetricProvider.OCI,
-            resourceType = MYSQL_RESOURCE_TYPE,
+            resourceType = resourceType ?: MYSQL_RESOURCE_TYPE,
             resourceId = resourceId,
             resourceName = dimensions[RESOURCE_NAME_DIMENSION] ?: resourceId,
-            metricKind = MetricKind.CPU_UTILIZATION,
+            metricKind = metricKind,
             metricNamespace = metricData.namespace ?: MYSQL_NAMESPACE,
-            providerMetricName = metricData.name ?: CPU_UTILIZATION_METRIC,
+            providerMetricName = metricData.name ?: metricName,
             statistic = MetricStatistic.MEAN,
-            unit = MetricUnit.PERCENT,
+            unit = unit,
             value = value,
             observedAt = observedAt,
             labels =
@@ -82,12 +124,17 @@ class OciMonitoringAdapter(
         )
     }
 
-    private fun cpuUtilizationMql(
+    private fun metricMql(
+        metricName: String,
         dbSystemId: String,
         resolution: String,
-    ): String =
-        "$CPU_UTILIZATION_METRIC[$resolution]{$RESOURCE_ID_DIMENSION = \"${escapeMqlValue(dbSystemId)}\", " +
-            "$RESOURCE_TYPE_DIMENSION = \"$MYSQL_RESOURCE_TYPE\"}.mean()"
+        filterByResourceType: Boolean,
+    ): String {
+        val resourceTypeFilter =
+            if (filterByResourceType) ", $RESOURCE_TYPE_DIMENSION = \"$MYSQL_RESOURCE_TYPE\"" else ""
+        val resourceFilter = "$RESOURCE_ID_DIMENSION = \"${escapeMqlValue(dbSystemId)}\"$resourceTypeFilter"
+        return "$metricName[$resolution]{$resourceFilter}.mean()"
+    }
 
     private fun escapeMqlValue(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
 
@@ -95,6 +142,7 @@ class OciMonitoringAdapter(
         private const val MYSQL_NAMESPACE = "oci_mysql_database"
         private const val MYSQL_RESOURCE_TYPE = "mysql"
         private const val CPU_UTILIZATION_METRIC = "CPUUtilization"
+        private const val DB_VOLUME_UTILIZATION_METRIC = "DbVolumeUtilization"
         private const val RESOURCE_ID_DIMENSION = "resourceId"
         private const val RESOURCE_NAME_DIMENSION = "resourceName"
         private const val RESOURCE_TYPE_DIMENSION = "resourceType"

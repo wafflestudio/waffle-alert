@@ -70,21 +70,57 @@ class OciMonitoringAdapterTest {
         )
     }
 
+    @Test
+    fun `maps mysql DB volume utilization without a resource type dimension`() {
+        val requestSlot = slot<SummarizeMetricsDataRequest>()
+        every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
+            SummarizeMetricsDataResponse
+                .builder()
+                .items(
+                    listOf(
+                        metricData(
+                            metricName = "DbVolumeUtilization",
+                            resourceType = null,
+                            datapoints = listOf(datapoint("2026-07-12T01:04:00Z", 82.5)),
+                        ),
+                    ),
+                )
+                .build()
+
+        val observations =
+            adapter.fetchMysqlDbVolumeUtilization(
+                OciMysqlMetricQuery(
+                    compartmentId = "ocid1.compartment.oc1..example",
+                    dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                ),
+            )
+
+        assertEquals(1, observations.size)
+        assertEquals(MetricKind.VOLUME_UTILIZATION, observations.single().metricKind)
+        assertEquals("mysql", observations.single().resourceType)
+        assertEquals(82.5, observations.single().value)
+        assertEquals(
+            "DbVolumeUtilization[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\"}.mean()",
+            requestSlot.captured.summarizeMetricsDataDetails.query,
+        )
+    }
+
     private fun metricData(
-        resourceType: String,
+        metricName: String = "CPUUtilization",
+        resourceType: String?,
         datapoints: List<AggregatedDatapoint>,
     ): MetricData =
         MetricData
             .builder()
             .namespace("oci_mysql_database")
             .compartmentId("ocid1.compartment.oc1..example")
-            .name("CPUUtilization")
+            .name(metricName)
             .dimensions(
-                mapOf(
-                    "resourceId" to "ocid1.mysqldbsystem.oc1..example",
-                    "resourceName" to "wafflestudio-mysql",
-                    "resourceType" to resourceType,
-                ),
+                buildMap {
+                    put("resourceId", "ocid1.mysqldbsystem.oc1..example")
+                    put("resourceName", "wafflestudio-mysql")
+                    resourceType?.let { put("resourceType", it) }
+                },
             )
             .aggregatedDatapoints(datapoints)
             .build()

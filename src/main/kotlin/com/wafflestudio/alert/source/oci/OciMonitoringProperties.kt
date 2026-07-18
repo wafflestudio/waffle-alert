@@ -28,6 +28,7 @@ data class OciMysqlDbSystemProperties(
 
 data class OciMysqlThresholdProperties(
     val cpuUtilization: OciThresholdProperties,
+    val dbVolumeUtilization: OciThresholdProperties,
 )
 
 data class OciThresholdProperties(

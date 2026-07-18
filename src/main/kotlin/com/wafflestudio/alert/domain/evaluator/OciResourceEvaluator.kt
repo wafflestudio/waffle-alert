@@ -14,8 +14,42 @@ class OciResourceEvaluator {
         observation: MetricObservation,
         threshold: CpuUtilizationThreshold,
         context: OciAlertContext = OciAlertContext(),
+    ): AlertEvent? =
+        evaluateUtilization(
+            observation = observation,
+            metricKind = MetricKind.CPU_UTILIZATION,
+            threshold = threshold,
+            ruleName = CPU_UTILIZATION_RULE,
+            title = "MySQL CPU utilization high",
+            metricLabel = "CPU utilization",
+            context = context,
+        )
+
+    fun evaluateDbVolumeUtilization(
+        observation: MetricObservation,
+        threshold: DbVolumeUtilizationThreshold,
+        context: OciAlertContext = OciAlertContext(),
+    ): AlertEvent? =
+        evaluateUtilization(
+            observation = observation,
+            metricKind = MetricKind.VOLUME_UTILIZATION,
+            threshold = threshold,
+            ruleName = DB_VOLUME_UTILIZATION_RULE,
+            title = "MySQL DB volume utilization high",
+            metricLabel = "DB volume utilization",
+            context = context,
+        )
+
+    private fun evaluateUtilization(
+        observation: MetricObservation,
+        metricKind: MetricKind,
+        threshold: UtilizationThreshold,
+        ruleName: String,
+        title: String,
+        metricLabel: String,
+        context: OciAlertContext,
     ): AlertEvent? {
-        if (!observation.isMysqlCpuUtilization()) {
+        if (!observation.isMysqlUtilization(metricKind)) {
             return null
         }
 
@@ -27,7 +61,6 @@ class OciResourceEvaluator {
             }
 
         val (severity, matchedThreshold) = severityAndThreshold
-        val ruleName = CPU_UTILIZATION_RULE
 
         return AlertEvent(
             source = AlertSource.OCI_MONITORING,
@@ -35,9 +68,9 @@ class OciResourceEvaluator {
             severity = severity,
             fingerprint = "oci-monitoring:mysql:${observation.resourceId}:$ruleName",
             ruleName = ruleName,
-            title = "MySQL CPU utilization high",
+            title = title,
             description =
-                "${observation.resourceName} CPU utilization is ${observation.value}% " +
+                "${observation.resourceName} $metricLabel is ${observation.value}% " +
                     "(threshold: $matchedThreshold%).",
             service = context.service,
             team = context.team,
@@ -57,29 +90,33 @@ class OciResourceEvaluator {
         )
     }
 
-    private fun MetricObservation.isMysqlCpuUtilization(): Boolean =
+    private fun MetricObservation.isMysqlUtilization(expectedMetricKind: MetricKind): Boolean =
         provider == MetricProvider.OCI &&
             resourceType == MYSQL_RESOURCE_TYPE &&
-            metricKind == MetricKind.CPU_UTILIZATION &&
+            metricKind == expectedMetricKind &&
             unit == MetricUnit.PERCENT
 
     companion object {
         private const val MYSQL_RESOURCE_TYPE = "mysql"
         private const val CPU_UTILIZATION_RULE = "cpu-utilization-high"
+        private const val DB_VOLUME_UTILIZATION_RULE = "db-volume-utilization-high"
         private const val COMPARISON_OPERATOR = "GREATER_THAN_OR_EQUAL"
     }
 }
 
-data class CpuUtilizationThreshold(
+data class UtilizationThreshold(
     val warning: Double,
     val critical: Double,
 ) {
     init {
-        require(warning >= 0.0) { "CPU warning threshold must be non-negative" }
-        require(warning < critical) { "CPU warning threshold must be lower than critical threshold" }
-        require(critical <= 100.0) { "CPU critical threshold must not exceed 100" }
+        require(warning >= 0.0) { "Utilization warning threshold must be non-negative" }
+        require(warning < critical) { "Utilization warning threshold must be lower than critical threshold" }
+        require(critical <= 100.0) { "Utilization critical threshold must not exceed 100" }
     }
 }
+
+typealias CpuUtilizationThreshold = UtilizationThreshold
+typealias DbVolumeUtilizationThreshold = UtilizationThreshold
 
 data class OciAlertContext(
     val service: String? = null,

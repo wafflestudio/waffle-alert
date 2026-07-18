@@ -33,6 +33,7 @@ class OciMonitoringSchedulerTest {
         val disabledDbSystem = dbSystem(id = "disabled", enabled = false)
         val observation = observation(value = 1.5)
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation)
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
         OciMonitoringScheduler(
@@ -58,6 +59,7 @@ class OciMonitoringSchedulerTest {
     @Test
     fun `does not send an event when evaluator considers observation normal`() {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation(value = 0.5))
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -67,6 +69,30 @@ class OciMonitoringSchedulerTest {
         ).poll()
 
         verify(exactly = 0) { ingestionService.ingest(any()) }
+    }
+
+    @Test
+    fun `polls DB volume utilization and sends a firing event to ingestion`() {
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns
+            listOf(
+                observation(
+                    value = 1.5,
+                    metricKind = MetricKind.VOLUME_UTILIZATION,
+                    providerMetricName = "DbVolumeUtilization",
+                ),
+            )
+        every { ingestionService.ingest(any()) } just Runs
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(listOf(dbSystem(enabled = true))),
+        ).poll()
+
+        verify(exactly = 1) { adapter.fetchMysqlDbVolumeUtilization(any()) }
+        verify(exactly = 1) { ingestionService.ingest(any()) }
     }
 
     private fun properties(
@@ -91,18 +117,23 @@ class OciMonitoringSchedulerTest {
             thresholds =
                 OciMysqlThresholdProperties(
                     cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
+                    dbVolumeUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                 ),
-        )
+            )
 
-    private fun observation(value: Double): MetricObservation =
+    private fun observation(
+        value: Double,
+        metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
+        providerMetricName: String = "CPUUtilization",
+    ): MetricObservation =
         MetricObservation(
             provider = MetricProvider.OCI,
             resourceType = "mysql",
             resourceId = "ocid1.mysqldbsystem.oc1..example",
             resourceName = "wafflestudio-mysql",
-            metricKind = MetricKind.CPU_UTILIZATION,
+            metricKind = metricKind,
             metricNamespace = "oci_mysql_database",
-            providerMetricName = "CPUUtilization",
+            providerMetricName = providerMetricName,
             statistic = MetricStatistic.MEAN,
             unit = MetricUnit.PERCENT,
             value = value,

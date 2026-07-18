@@ -1,8 +1,11 @@
 package com.wafflestudio.alert.source.scheduler
 
 import com.wafflestudio.alert.domain.evaluator.CpuUtilizationThreshold
+import com.wafflestudio.alert.domain.evaluator.DbVolumeUtilizationThreshold
 import com.wafflestudio.alert.domain.evaluator.OciAlertContext
 import com.wafflestudio.alert.domain.evaluator.OciResourceEvaluator
+import com.wafflestudio.alert.domain.model.AlertEvent
+import com.wafflestudio.alert.domain.model.MetricObservation
 import com.wafflestudio.alert.domain.service.AlertIngestionService
 import com.wafflestudio.alert.source.oci.OciMonitoringAdapter
 import com.wafflestudio.alert.source.oci.OciMonitoringProperties
@@ -27,27 +30,60 @@ class OciMonitoringScheduler(
     }
 
     private fun pollDbSystem(dbSystem: OciMysqlDbSystemProperties) {
-        try {
-            val observations =
-                adapter.fetchMysqlCpuUtilization(
-                    OciMysqlMetricQuery(
-                        compartmentId = dbSystem.compartmentId,
-                        dbSystemId = dbSystem.id,
-                        window = properties.queryWindow,
-                        resolution = properties.resolution,
-                    ),
+        val query =
+            OciMysqlMetricQuery(
+                compartmentId = dbSystem.compartmentId,
+                dbSystemId = dbSystem.id,
+                window = properties.queryWindow,
+                resolution = properties.resolution,
+            )
+        val context = OciAlertContext(dbSystem.service, dbSystem.team)
+
+        pollMetric(
+            dbSystemId = dbSystem.id,
+            metricName = "CPUUtilization",
+            fetch = { adapter.fetchMysqlCpuUtilization(query) },
+            evaluate = { observation ->
+                val threshold = dbSystem.thresholds.cpuUtilization
+                evaluator.evaluateCpuUtilization(
+                    observation = observation,
+                    threshold = CpuUtilizationThreshold(threshold.warning, threshold.critical),
+                    context = context,
                 )
-            val threshold = dbSystem.thresholds.cpuUtilization
-            observations.forEach { observation ->
-                evaluator
-                    .evaluateCpuUtilization(
-                        observation = observation,
-                        threshold = CpuUtilizationThreshold(threshold.warning, threshold.critical),
-                        context = OciAlertContext(dbSystem.service, dbSystem.team),
-                    )?.let(ingestionService::ingest)
+            },
+        )
+        pollMetric(
+            dbSystemId = dbSystem.id,
+            metricName = "DbVolumeUtilization",
+            fetch = { adapter.fetchMysqlDbVolumeUtilization(query) },
+            evaluate = { observation ->
+                val threshold = dbSystem.thresholds.dbVolumeUtilization
+                evaluator.evaluateDbVolumeUtilization(
+                    observation = observation,
+                    threshold = DbVolumeUtilizationThreshold(threshold.warning, threshold.critical),
+                    context = context,
+                )
+            },
+        )
+    }
+
+    private fun pollMetric(
+        dbSystemId: String,
+        metricName: String,
+        fetch: () -> List<MetricObservation>,
+        evaluate: (MetricObservation) -> AlertEvent?,
+    ) {
+        try {
+            fetch().forEach { observation ->
+                evaluate(observation)?.let(ingestionService::ingest)
             }
         } catch (exception: Exception) {
-            log.error("Failed to poll OCI MySQL DB system id={}", dbSystem.id, exception)
+            log.error(
+                "Failed to poll OCI MySQL metric={} dbSystemId={}",
+                metricName,
+                dbSystemId,
+                exception,
+            )
         }
     }
 }
