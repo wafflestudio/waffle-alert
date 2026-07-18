@@ -52,6 +52,12 @@ spring:
     password: alertpw
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+oci:
+  auth:
+    type: config
+  config:
+    profile: ${OCI_CONFIG_PROFILE:DEFAULT}
+
 ---
 # ───────────────────────────────────────────────
 # prod: DB 등 secret은 OCI Vault에서 주입 (snutt 패턴)
@@ -69,6 +75,8 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 oci:
+  auth:
+    type: instance_principal
   vault:
     secret-ids: ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqadjrtaoxv4b2kmdicuk4ivfhhqqr4j2g2ecmqe4boknxq
     region: ap-chuncheon-1
