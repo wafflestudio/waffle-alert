@@ -1,9 +1,8 @@
 package com.wafflestudio.alert.source.scheduler
 
-import com.wafflestudio.alert.domain.evaluator.CpuUtilizationThreshold
-import com.wafflestudio.alert.domain.evaluator.DbVolumeUtilizationThreshold
-import com.wafflestudio.alert.domain.evaluator.OciAlertContext
-import com.wafflestudio.alert.domain.evaluator.OciResourceEvaluator
+import com.wafflestudio.alert.domain.evaluator.AlertContext
+import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
+import com.wafflestudio.alert.domain.evaluator.UtilizationThreshold
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.MetricObservation
 import com.wafflestudio.alert.domain.service.AlertIngestionService
@@ -16,7 +15,7 @@ import org.springframework.scheduling.annotation.Scheduled
 
 class OciMonitoringScheduler(
     private val adapter: OciMonitoringAdapter,
-    private val evaluator: OciResourceEvaluator,
+    private val evaluator: ResourceMetricEvaluator,
     private val ingestionService: AlertIngestionService,
     private val properties: OciMonitoringProperties,
 ) {
@@ -38,7 +37,7 @@ class OciMonitoringScheduler(
                 window = properties.queryWindow,
                 resolution = properties.resolution,
             )
-        val context = OciAlertContext(dbSystem.service, dbSystem.team)
+        val context = AlertContext(dbSystem.service, dbSystem.team)
 
         pollMetric(
             dbSystemId = dbSystem.id,
@@ -46,9 +45,9 @@ class OciMonitoringScheduler(
             fetch = { adapter.fetchMysqlCpuUtilization(query) },
             evaluate = { observation ->
                 val threshold = dbSystem.thresholds.cpuUtilization
-                evaluator.evaluateCpuUtilization(
+                evaluator.evaluateUtilization(
                     observation = observation,
-                    threshold = CpuUtilizationThreshold(threshold.warning, threshold.critical),
+                    threshold = UtilizationThreshold(threshold.warning, threshold.critical),
                     context = context,
                 )
             },
@@ -59,9 +58,9 @@ class OciMonitoringScheduler(
             fetch = { adapter.fetchMysqlDbVolumeUtilization(query) },
             evaluate = { observation ->
                 val threshold = dbSystem.thresholds.dbVolumeUtilization
-                evaluator.evaluateDbVolumeUtilization(
+                evaluator.evaluateUtilization(
                     observation = observation,
-                    threshold = DbVolumeUtilizationThreshold(threshold.warning, threshold.critical),
+                    threshold = UtilizationThreshold(threshold.warning, threshold.critical),
                     context = context,
                 )
             },

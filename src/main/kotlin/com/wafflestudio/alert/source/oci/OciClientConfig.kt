@@ -4,7 +4,7 @@ import com.oracle.bmc.auth.AuthenticationDetailsProvider
 import com.oracle.bmc.auth.ConfigFileAuthenticationDetailsProvider
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider
 import com.oracle.bmc.monitoring.MonitoringClient
-import com.wafflestudio.alert.domain.evaluator.OciResourceEvaluator
+import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
 import com.wafflestudio.alert.domain.service.AlertIngestionService
 import com.wafflestudio.alert.source.scheduler.OciMonitoringScheduler
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -38,12 +38,9 @@ class OciClientConfig {
     ): OciMonitoringAdapter = OciMonitoringAdapter(monitoringClient, properties.region)
 
     @Bean
-    fun ociResourceEvaluator(): OciResourceEvaluator = OciResourceEvaluator()
-
-    @Bean
     fun ociMonitoringScheduler(
         adapter: OciMonitoringAdapter,
-        evaluator: OciResourceEvaluator,
+        evaluator: ResourceMetricEvaluator,
         ingestionService: AlertIngestionService,
         properties: OciMonitoringProperties,
     ): OciMonitoringScheduler =

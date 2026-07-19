@@ -1,6 +1,6 @@
 package com.wafflestudio.alert.source.scheduler
 
-import com.wafflestudio.alert.domain.evaluator.OciResourceEvaluator
+import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
 import com.wafflestudio.alert.domain.model.MetricKind
 import com.wafflestudio.alert.domain.model.MetricObservation
 import com.wafflestudio.alert.domain.model.MetricProvider
@@ -24,7 +24,7 @@ import kotlin.test.Test
 
 class OciMonitoringSchedulerTest {
     private val adapter = mockk<OciMonitoringAdapter>()
-    private val evaluator = OciResourceEvaluator()
+    private val evaluator = ResourceMetricEvaluator()
     private val ingestionService = mockk<AlertIngestionService>()
 
     @Test

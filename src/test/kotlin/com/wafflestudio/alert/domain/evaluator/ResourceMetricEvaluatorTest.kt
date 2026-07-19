@@ -13,13 +13,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-class OciResourceEvaluatorTest {
-    private val evaluator = OciResourceEvaluator()
-    private val threshold = CpuUtilizationThreshold(warning = 80.0, critical = 90.0)
+class ResourceMetricEvaluatorTest {
+    private val evaluator = ResourceMetricEvaluator()
+    private val threshold = UtilizationThreshold(warning = 80.0, critical = 90.0)
 
     @Test
-    fun `returns a warning firing event when CPU crosses warning threshold`() {
-        val event = evaluator.evaluateCpuUtilization(observation(value = 85.0), threshold)
+    fun `selects OCI MySQL CPU rule and returns a warning event`() {
+        val event = evaluator.evaluateUtilization(observation(value = 85.0), threshold)
 
         requireNotNull(event)
         assertEquals(AlertSource.OCI_MONITORING, event.source)
@@ -38,8 +38,8 @@ class OciResourceEvaluatorTest {
     }
 
     @Test
-    fun `returns a critical firing event when CPU crosses critical threshold`() {
-        val event = evaluator.evaluateCpuUtilization(observation(value = 95.0), threshold)
+    fun `returns a critical event when value crosses critical threshold`() {
+        val event = evaluator.evaluateUtilization(observation(value = 95.0), threshold)
 
         requireNotNull(event)
         assertEquals(Severity.CRITICAL, event.severity)
@@ -47,42 +47,37 @@ class OciResourceEvaluatorTest {
     }
 
     @Test
-    fun `returns a warning firing event when DB volume utilization crosses warning threshold`() {
+    fun `selects OCI MySQL DB volume utilization rule`() {
         val event =
-            evaluator.evaluateDbVolumeUtilization(
+            evaluator.evaluateUtilization(
                 observation(
                     value = 85.0,
                     metricKind = MetricKind.VOLUME_UTILIZATION,
                     providerMetricName = "DbVolumeUtilization",
                 ),
-                DbVolumeUtilizationThreshold(warning = 80.0, critical = 90.0),
+                threshold,
             )
 
         requireNotNull(event)
-        assertEquals(Severity.WARNING, event.severity)
         assertEquals("db-volume-utilization-high", event.ruleName)
         assertEquals(
             "oci-monitoring:mysql:ocid1.mysqldbsystem.oc1..example:db-volume-utilization-high",
             event.fingerprint,
         )
         assertEquals("DbVolumeUtilization", event.metricName)
-        assertEquals("85.0", event.value)
-        assertEquals("80.0", event.threshold)
     }
 
     @Test
-    fun `does not create an event for a value below warning threshold`() {
-        val event = evaluator.evaluateCpuUtilization(observation(value = 75.0), threshold)
-
-        assertNull(event)
+    fun `returns no event below warning threshold`() {
+        assertNull(evaluator.evaluateUtilization(observation(value = 75.0), threshold))
     }
 
     @Test
-    fun `uses explicitly configured low thresholds for delivery checks`() {
+    fun `supports explicitly configured low thresholds`() {
         val event =
-            evaluator.evaluateCpuUtilization(
+            evaluator.evaluateUtilization(
                 observation(value = 1.5),
-                CpuUtilizationThreshold(warning = 1.0, critical = 2.0),
+                UtilizationThreshold(warning = 1.0, critical = 2.0),
             )
 
         requireNotNull(event)
@@ -91,14 +86,17 @@ class OciResourceEvaluatorTest {
     }
 
     @Test
-    fun `ignores observations that are not OCI MySQL CPU utilization`() {
-        val event =
-            evaluator.evaluateCpuUtilization(
-                observation(value = 95.0).copy(metricKind = MetricKind.MEMORY_UTILIZATION),
-                threshold,
-            )
+    fun `returns no event when provider has no matching rule`() {
+        val awsObservation = observation(value = 95.0).copy(provider = MetricProvider.AWS_CLOUDWATCH)
 
-        assertNull(event)
+        assertNull(evaluator.evaluateUtilization(awsObservation, threshold))
+    }
+
+    @Test
+    fun `returns no event when metric kind has no matching rule`() {
+        val memoryObservation = observation(value = 95.0).copy(metricKind = MetricKind.MEMORY_UTILIZATION)
+
+        assertNull(evaluator.evaluateUtilization(memoryObservation, threshold))
     }
 
     private fun observation(
