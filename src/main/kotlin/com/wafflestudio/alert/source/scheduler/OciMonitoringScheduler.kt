@@ -25,6 +25,7 @@ class OciMonitoringScheduler(
     @Scheduled(fixedDelayString = "\${alert.oci-monitoring.polling-interval-ms:60000}")
     fun poll() {
         properties.mysql.dbSystems
+            .values
             .filter { it.enabled }
             .forEach(::pollDbSystem)
     }

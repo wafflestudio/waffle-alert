@@ -40,7 +40,13 @@ class OciMonitoringSchedulerTest {
             adapter = adapter,
             evaluator = evaluator,
             ingestionService = ingestionService,
-            properties = properties(listOf(enabledDbSystem, disabledDbSystem)),
+            properties =
+                properties(
+                    mapOf(
+                        "enabled" to enabledDbSystem,
+                        "disabled" to disabledDbSystem,
+                    ),
+                ),
         ).poll()
 
         verify(exactly = 1) {
@@ -65,7 +71,7 @@ class OciMonitoringSchedulerTest {
             adapter = adapter,
             evaluator = evaluator,
             ingestionService = ingestionService,
-            properties = properties(listOf(dbSystem(enabled = true))),
+            properties = properties(mapOf("enabled" to dbSystem(enabled = true))),
         ).poll()
 
         verify(exactly = 0) { ingestionService.ingest(any()) }
@@ -88,7 +94,7 @@ class OciMonitoringSchedulerTest {
             adapter = adapter,
             evaluator = evaluator,
             ingestionService = ingestionService,
-            properties = properties(listOf(dbSystem(enabled = true))),
+            properties = properties(mapOf("enabled" to dbSystem(enabled = true))),
         ).poll()
 
         verify(exactly = 1) { adapter.fetchMysqlDbVolumeUtilization(any()) }
@@ -96,7 +102,8 @@ class OciMonitoringSchedulerTest {
     }
 
     private fun properties(
-        dbSystems: List<OciMysqlDbSystemProperties> = listOf(dbSystem()),
+        dbSystems: Map<String, OciMysqlDbSystemProperties> =
+            mapOf("default" to dbSystem()),
     ): OciMonitoringProperties =
         OciMonitoringProperties(
             queryWindow = java.time.Duration.ofMinutes(5),
@@ -119,7 +126,7 @@ class OciMonitoringSchedulerTest {
                     cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     dbVolumeUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                 ),
-            )
+        )
 
     private fun observation(
         value: Double,

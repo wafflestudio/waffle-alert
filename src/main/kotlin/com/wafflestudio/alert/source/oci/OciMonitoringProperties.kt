@@ -14,7 +14,7 @@ data class OciMonitoringProperties(
 )
 
 data class OciMysqlMonitoringProperties(
-    val dbSystems: List<OciMysqlDbSystemProperties> = emptyList(),
+    val dbSystems: Map<String, OciMysqlDbSystemProperties> = emptyMap(),
 )
 
 data class OciMysqlDbSystemProperties(
