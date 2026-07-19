@@ -61,15 +61,11 @@ alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.compartment-id
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.service
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.team
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.enabled
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.thresholds.cpu-utilization.warning
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.thresholds.cpu-utilization.critical
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.thresholds.db-volume-utilization.warning
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.thresholds.db-volume-utilization.critical
 ```
 
 `db-systems`는 이름을 key로 쓰는 map이다. 같은 `wafflestudio-mysql` key 아래 Vault의 공통값과
-`application-local.yml`의 낮은 threshold가 병합된다. `prod`에서는 YAML이 threshold를 덮어쓰지
-않으므로 Vault의 운영 threshold를 사용한다.
+프로파일 YAML의 threshold가 병합된다. `local`은 Discord 전달 확인을 위한 낮은 값을 사용하고,
+`prod`는 운영값을 사용한다.
 
 조회 실패는 애플리케이션 로그의 `Failed to poll OCI MySQL metric`에서 확인하고,
 성공한 threshold 초과 event는 `oci-monitoring` Discord channel로 확인한다.
