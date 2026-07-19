@@ -1,6 +1,6 @@
 package com.wafflestudio.alert.source.oci
 
-import com.oracle.bmc.auth.AuthenticationDetailsProvider
+import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider
 import com.oracle.bmc.auth.ConfigFileAuthenticationDetailsProvider
 import com.oracle.bmc.auth.InstancePrincipalsAuthenticationDetailsProvider
 import com.oracle.bmc.monitoring.MonitoringClient
@@ -43,10 +43,9 @@ class OciClientConfig {
         evaluator: ResourceMetricEvaluator,
         ingestionService: AlertIngestionService,
         properties: OciMonitoringProperties,
-    ): OciMonitoringScheduler =
-        OciMonitoringScheduler(adapter, evaluator, ingestionService, properties)
+    ): OciMonitoringScheduler = OciMonitoringScheduler(adapter, evaluator, ingestionService, properties)
 
-    private fun authenticationProvider(environment: Environment): AuthenticationDetailsProvider {
+    private fun authenticationProvider(environment: Environment): BasicAuthenticationDetailsProvider {
         val authType = environment.getProperty("oci.auth.type", "instance_principal").trim().lowercase()
         return when (authType) {
             "config", "configfile", "config_file", "config-file" -> configFileAuthenticationProvider(environment)
@@ -59,7 +58,7 @@ class OciClientConfig {
         }
     }
 
-    private fun configFileAuthenticationProvider(environment: Environment): AuthenticationDetailsProvider {
+    private fun configFileAuthenticationProvider(environment: Environment): BasicAuthenticationDetailsProvider {
         val profile = environment.getProperty("oci.config.profile", "DEFAULT").trim().ifEmpty { "DEFAULT" }
         val configPath =
             environment

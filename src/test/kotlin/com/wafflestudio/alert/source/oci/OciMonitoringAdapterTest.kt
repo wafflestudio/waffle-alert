@@ -46,8 +46,7 @@ class OciMonitoringAdapterTest {
                             datapoints = listOf(datapoint("2026-07-12T01:04:00Z", 99.0)),
                         ),
                     ),
-                )
-                .build()
+                ).build()
 
         val observations =
             adapter.fetchMysqlCpuUtilization(
@@ -84,8 +83,7 @@ class OciMonitoringAdapterTest {
                             datapoints = listOf(datapoint("2026-07-12T01:04:00Z", 82.5)),
                         ),
                     ),
-                )
-                .build()
+                ).build()
 
         val observations =
             adapter.fetchMysqlDbVolumeUtilization(
@@ -121,13 +119,16 @@ class OciMonitoringAdapterTest {
                     put("resourceName", "wafflestudio-mysql")
                     resourceType?.let { put("resourceType", it) }
                 },
-            )
-            .aggregatedDatapoints(datapoints)
+            ).aggregatedDatapoints(datapoints)
             .build()
 
     private fun datapoint(
         timestamp: String,
         value: Double,
     ): AggregatedDatapoint =
-        AggregatedDatapoint.builder().timestamp(Date.from(Instant.parse(timestamp))).value(value).build()
+        AggregatedDatapoint
+            .builder()
+            .timestamp(Date.from(Instant.parse(timestamp)))
+            .value(value)
+            .build()
 }

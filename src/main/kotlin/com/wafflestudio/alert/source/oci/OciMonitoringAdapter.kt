@@ -59,8 +59,7 @@ class OciMonitoringAdapter(
                             .endTime(Date.from(endTime))
                             .resolution(query.resolution)
                             .build(),
-                    )
-                    .build(),
+                    ).build(),
             )
 
         return response.items.orEmpty().mapNotNull { metricData ->

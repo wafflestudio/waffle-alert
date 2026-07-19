@@ -19,7 +19,12 @@ class ResourceMetricEvaluatorTest {
 
     @Test
     fun `selects OCI MySQL CPU rule and returns a warning event`() {
-        val event = evaluator.evaluateUtilization(observation(value = 85.0), threshold)
+        val event =
+            evaluator.evaluateUtilization(
+                observation = observation(value = 85.0),
+                threshold = threshold,
+                context = AlertContext(service = "platform", team = "infra"),
+            )
 
         requireNotNull(event)
         assertEquals(AlertSource.OCI_MONITORING, event.source)
