@@ -18,16 +18,12 @@ spring:
     enabled: true
     baseline-version: 1
   datasource:
-    url:
-    username:
-    password:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 server:
   port: 8080
 
 discord:
-  bot-token:
   channel-ids:
     prometheus-alert: 1525123803284242512
     oci-cost: 1525123822322188308
