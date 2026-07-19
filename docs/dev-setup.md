@@ -36,19 +36,23 @@ DB 스키마 추가는 반드시 위 경로에 ddl 파일로 추가해줘야 fly
 
 ### 로컬 OCI Monitoring -> Discord 확인
 
-로컬 OCI 조회는 `~/.oci/config`의 OCI CLI profile을 사용한다. 기본 `local` 프로파일은
+로컬 OCI 조회와 Vault 조회는 `~/.oci/config`의 OCI CLI profile을 사용한다. 기본 `local` 프로파일은
 `oci.auth.type=config`으로 동작하고, 운영 `prod` 프로파일은 Instance Principal을 사용한다.
 
 `oci-test` 프로파일은 Discord 전달 확인을 위해서만 사용하며 threshold가 낮게 설정되어 있다.
-DB System OCID와 compartment OCID는 환경변수로만 넘긴다.
+DB System OCID, compartment OCID, Vault secret OCID는 환경변수로만 넘긴다.
+Vault secret의 `spring.datasource.*`는 `waffle-alert` 자체 DB를 가리켜야 한다.
+이 프로파일을 사용할 때는 Docker MySQL을 별도로 띄우지 않는다.
 
 ```bash
-docker compose up -d
-export DISCORD_BOT_TOKEN='...'
+export OCI_VAULT_SECRET_IDS='ocid1.vaultsecret...'
 export OCI_MYSQL_DB_SYSTEM_ID='ocid1.mysqldbsystem...'
 export OCI_MYSQL_COMPARTMENT_ID='ocid1.compartment...'
 ./gradlew bootRun --args='--spring.profiles.active=local,oci-test'
 ```
+
+Vault JSON에는 최소한 `spring.datasource.url`, `spring.datasource.username`,
+`spring.datasource.password`, `discord.bot-token`이 있어야 한다.
 
 조회 실패는 애플리케이션 로그의 `Failed to poll OCI MySQL metric`에서 확인하고,
 성공한 threshold 초과 event는 `oci-monitoring` Discord channel로 확인한다.

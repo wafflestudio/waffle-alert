@@ -2,6 +2,17 @@ spring:
   config:
     activate:
       on-profile: oci-test
+  datasource:
+    # The Vault secret supplies the alert application's own DB connection.
+    url:
+    username:
+    password:
+
+oci:
+  vault:
+    # Bootstrap configuration: the secret OCID is needed before Vault can be read.
+    secret-ids: ${OCI_VAULT_SECRET_IDS}
+    region: ${OCI_VAULT_REGION:ap-chuncheon-1}
 
 # Explicit local end-to-end profile. Do not activate this profile in prod.
 alert:
