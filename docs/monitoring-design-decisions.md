@@ -13,8 +13,9 @@
 - threshold 판정과 `AlertEvent` 생성은 공통 evaluator에서 처리한다.
 - 운영 설정은 Vault와 profile YAML의 책임을 구분하고 코드 리뷰로 비교할 수 있게 한다.
 
-이번 MVP는 `FIRING` 생성까지만 다룬다. 정상 범위 복귀에 따른 `RESOLVED`, 반복 event와 Incident
-처리는 이후 단계다.
+이번 MVP는 `FIRING` 생성과 Discord 전달까지만 다룬다. 정상 범위 복귀에 따른 `RESOLVED`, 반복
+event와 Incident 처리는 이후 단계다. Incident용 entity와 schema는 존재하지만 현재 ingestion 경로는
+DB를 사용하지 않는다.
 
 ## 2. 용어 구분
 
@@ -190,11 +191,25 @@ local과 prod를 바로 비교할 수 있게 한다.
 | 설정 | local | prod |
 | --- | --- | --- |
 | OCI 인증 | OCI config profile | Instance Principal |
+| Polling 주기 | 1분 | 15분 |
 | CPU warning/critical | 1 / 2 | 80 / 90 |
 | DB volume warning/critical | 1 / 2 | 80 / 90 |
 
 낮은 local threshold는 실제 운영 기준이 아니라 OCI 조회부터 Discord 출력까지 연결됐는지 확인하기 위한
 값이다. 공통 Vault bootstrap, datasource, Discord token 주입과 Monitoring 활성화는 profile 간 동일하다.
+Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 15분을 기다린다.
+처리 시간이 길어져도 실행이 겹치지 않는다.
+
+### 현재 DB 상태
+
+`AlertIncident`, `AlertEventLog` entity와 Flyway migration은 향후 Incident 저장을 위해 먼저 추가됐다.
+하지만 repository와 `IncidentService`는 아직 구현되지 않았고, `AlertIngestionService`는
+`NotificationPort`를 바로 호출한다. 따라서 현재 AlertEvent가 FIRING되면 DB 저장 없이 Discord로 간다.
+
+다만 JPA와 Flyway dependency가 활성화돼 있어 애플리케이션 시작 과정에서는 DB 연결을 요구한다.
+운영 Pod는 VCN 내부에서 Vault datasource의 private endpoint에 접근할 수 있지만 로컬 머신에는 route가
+없어 connect timeout이 발생한다. Monitoring local E2E에서는 DB/JPA/Flyway auto-configuration을 실행
+옵션으로 제외한다. Incident 기능을 구현할 때 이 임시 분리를 다시 검토한다.
 
 ## 6. DB Systems를 List가 아니라 Map으로 둔 이유
 

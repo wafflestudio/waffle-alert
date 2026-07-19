@@ -5,6 +5,9 @@
 Monitoring provider 확장 경계와 Vault 설정 결정은
 [Monitoring 확장 설계 결정](./monitoring-design-decisions.md)을 참고한다.
 
+> 현재 구현 상태: Incident/EventLog entity와 schema만 준비돼 있고 repository와 IncidentService는 TODO다.
+> `AlertIngestionService`는 DB를 거치지 않고 모든 AlertEvent를 Discord로 바로 전달한다.
+
 ## 1. 핵심 개념: AlertEvent / Incident / EventLog
 
 병원 응급실 비유:
@@ -125,13 +128,13 @@ OCI Monitoring/Cost API:
 | fingerprint | payload/라벨 | service+metric+resource | metric + **날짜**(보통) |
 | evaluator | 불필요 | 필요 | 필요 |
 
-### 시나리오 A — OCI Monitoring (MySQL CPU, 1분 주기, 임계치 80%)
+### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 15분 주기, 임계치 80%)
 
 ```
 10:00  CPU 60%  → 정상. incident 없음.
-10:01  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
-10:02  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
-10:03  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
+10:15  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
+10:30  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
+10:45  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
 ```
 
 → **차이: OCI는 RESOLVED를 안 보내준다.** evaluator가 "이번 측정이 정상인데 열린 incident가 있으면 → 닫는다"를 직접 판단해야 함.
@@ -238,7 +241,7 @@ class WaffleAlertApplicationTests { @Test fun contextLoads() {} }
 waffle-alert는 일반 서비스가 아니라 **클러스터 인프라 컴포넌트** (truffle / k8s-monitoring과 같은 성격).
 
 - 모니터링 대상이 **클러스터 하나**라, dev/prod 인스턴스를 나눌 이유가 약함 → **prod Pod 1개로 시작** (truffle도 prod만 실재).
-- **dev Pod 불필요**: dev DB에 붙는 건 dev Pod가 아니라 개발자 로컬 앱. 그리고 waffle-alert 특성상 공용 dev DB도 MVP엔 불필요 (local Docker DB + OCI 직접 호출로 충분).
+- **dev Pod 불필요**: Monitoring local E2E는 persistence auto-configuration을 제외하고 OCI API와 Discord를 직접 호출한다. 공용 dev DB는 MVP에 두지 않는다.
 - 환경 분리가 의미 있는 건 **알림 채널**뿐 (개발 #alert-test / 운영 #infra-critical) — truffle 방식.
 
 ### 브랜치 전략
