@@ -2,6 +2,9 @@
 
 > waffle-alert가 어떻게 동작하는지. 코드 짜기 전 개념 정리.
 
+Monitoring provider 확장 경계와 Vault 설정 결정은
+[Monitoring 확장 설계 결정](./monitoring-design-decisions.md)을 참고한다.
+
 ## 1. 핵심 개념: AlertEvent / Incident / EventLog
 
 병원 응급실 비유:
