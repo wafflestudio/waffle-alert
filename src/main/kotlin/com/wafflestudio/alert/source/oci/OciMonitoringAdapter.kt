@@ -90,16 +90,21 @@ class OciMonitoringAdapter(
         }
 
         val resourceId = dimensions[RESOURCE_ID_DIMENSION] ?: return null
-        val latestObservation =
+        val observations =
             metricData.aggregatedDatapoints
                 .orEmpty()
                 .mapNotNull { datapoint ->
                     val timestamp = datapoint.timestamp ?: return@mapNotNull null
                     val value = datapoint.value ?: return@mapNotNull null
                     timestamp.toInstant() to value
-                }.maxByOrNull { (timestamp) -> timestamp }
-                ?: return null
-        val (observedAt, value) = latestObservation
+                }
+        val selectedObservation =
+            if (metricKind == MetricKind.CPU_UTILIZATION) {
+                observations.maxByOrNull { (_, value) -> value }
+            } else {
+                observations.maxByOrNull { (timestamp) -> timestamp }
+            } ?: return null
+        val (observedAt, value) = selectedObservation
 
         return MetricObservation(
             provider = MetricProvider.OCI,

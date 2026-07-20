@@ -5,7 +5,7 @@ import java.time.Instant
 /**
  * A provider-neutral metric observation passed from a source adapter to an evaluator.
  *
- * This is not an alert. It only describes the latest observed value for one resource.
+ * This is not an alert. It only describes one selected observed value for one resource.
  */
 data class MetricObservation(
     val provider: MetricProvider,

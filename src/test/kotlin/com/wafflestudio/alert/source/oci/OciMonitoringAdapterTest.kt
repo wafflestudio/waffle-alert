@@ -26,7 +26,7 @@ class OciMonitoringAdapterTest {
         )
 
     @Test
-    fun `maps the latest mysql CPU datapoint to an observation`() {
+    fun `maps the peak mysql CPU datapoint to an observation`() {
         val requestSlot = slot<SummarizeMetricsDataRequest>()
         every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
             SummarizeMetricsDataResponse
@@ -39,6 +39,7 @@ class OciMonitoringAdapterTest {
                                 listOf(
                                     datapoint("2026-07-12T01:03:00Z", 81.0),
                                     datapoint("2026-07-12T01:04:00Z", 92.4),
+                                    datapoint("2026-07-12T01:05:00Z", 70.0),
                                 ),
                         ),
                         metricData(
@@ -80,7 +81,11 @@ class OciMonitoringAdapterTest {
                         metricData(
                             metricName = "DbVolumeUtilization",
                             resourceType = null,
-                            datapoints = listOf(datapoint("2026-07-12T01:04:00Z", 82.5)),
+                            datapoints =
+                                listOf(
+                                    datapoint("2026-07-12T01:04:00Z", 82.5),
+                                    datapoint("2026-07-12T01:05:00Z", 70.0),
+                                ),
                         ),
                     ),
                 ).build()
@@ -96,7 +101,8 @@ class OciMonitoringAdapterTest {
         assertEquals(1, observations.size)
         assertEquals(MetricKind.VOLUME_UTILIZATION, observations.single().metricKind)
         assertEquals("mysql", observations.single().resourceType)
-        assertEquals(82.5, observations.single().value)
+        assertEquals(70.0, observations.single().value)
+        assertEquals(Instant.parse("2026-07-12T01:05:00Z"), observations.single().observedAt)
         assertEquals(
             "DbVolumeUtilization[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\"}.mean()",
             requestSlot.captured.summarizeMetricsDataDetails.query,
