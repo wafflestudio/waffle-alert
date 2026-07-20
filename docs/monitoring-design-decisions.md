@@ -282,7 +282,20 @@ Spring Binder는 여러 property source에서 같은 Map key 아래의 서로 �
 Vault, threshold는 YAML로 leaf 책임을 분리한다. key를 변경하면 기존 항목 override가 아니라 새 항목이
 되므로 rename 시 Vault와 모든 profile YAML을 함께 변경해야 한다.
 
-## 7. 다음 확장 시 확인사항
+## 7. 현재 한계와 후속 작업
+
+| 항목 | 현재 상태 | 후속 작업 |
+| --- | --- | --- |
+| 상태 수명주기 | OCI는 정상값을 버리고 `FIRING`만 생성하므로 지속 장애는 polling마다 알림이 오고 `RESOLVED`는 오지 않는다. | Incident를 구현해 fingerprint별 `FIRING`/`REPEATED`/`RESOLVED` 상태와 알림 억제를 관리한다. |
+| Metric 누락 구간 | Incident 구현 전 임시 보완으로 prod polling을 3분, query window를 4분으로 두고 1분을 겹친다. CPU는 window의 peak, DB volume은 최신값을 평가한다. local은 기존 1분 polling/5분 window를 유지한다. | 겹친 구간의 중복 event는 Incident에서 억제한다. 처리 지연이 1분을 넘는 운영 상황이 확인되면 window를 다시 조정한다. |
+| Metric 범위 | OCI MySQL CPU와 DB volume만 지원한다. | 필요한 순서대로 memory, connection, backup failure adapter와 rule을 추가한다. |
+| 무데이터 구분 | 빈 응답이나 dimension/datapoint 누락은 event 없이 버려져 정상 상태와 구분되지 않는다. | poll 성공 여부와 no-data 상태를 metric 또는 별도 alert로 노출한다. |
+| 원본 추적 정보 | OCI dimensions, namespace, compartment, region은 label로 남지만 MQL과 raw payload는 보존하지 않는다. | 장애 분석에 필요해지면 MQL과 provider 응답 식별 정보를 `annotations` 또는 `rawPayload`에 보존한다. |
+
+상태 수명주기, metric 범위 확대, 무데이터 감지, 원본 추적 정보 순서로 보완한다. Metric 누락 구간은 위 임시
+설정으로 먼저 완화했으며 Incident 구현 전까지 겹친 window에서 같은 spike가 반복될 수 있음을 허용한다.
+
+## 8. 다음 확장 시 확인사항
 
 - 새 provider adapter가 SDK 응답을 `MetricObservation`으로 완전히 정규화하는가?
 - provider 원본 metric 이름이 아니라 `MetricKind`를 기준으로 rule을 선택하는가?
