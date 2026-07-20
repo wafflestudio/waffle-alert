@@ -9,7 +9,8 @@ oci:
 
 alert:
   oci-monitoring:
-    polling-interval-ms: 900000
+    polling-interval-ms: 180000
+    query-window: 4m
     mysql:
       db-systems:
         wafflestudio-mysql:

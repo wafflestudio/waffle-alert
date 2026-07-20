@@ -128,13 +128,13 @@ OCI Monitoring/Cost API:
 | fingerprint | payload/라벨 | service+metric+resource | metric + **날짜**(보통) |
 | evaluator | 불필요 | 필요 | 필요 |
 
-### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 15분 주기, 임계치 80%)
+### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 3분 주기, 임계치 80%)
 
 ```
 10:00  CPU 60%  → 정상. incident 없음.
-10:15  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
-10:30  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
-10:45  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
+10:03  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
+10:06  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
+10:09  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
 ```
 
 → **차이: OCI는 RESOLVED를 안 보내준다.** evaluator가 "이번 측정이 정상인데 열린 incident가 있으면 → 닫는다"를 직접 판단해야 함.

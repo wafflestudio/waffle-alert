@@ -191,13 +191,15 @@ local과 prod를 바로 비교할 수 있게 한다.
 | 설정 | local | prod |
 | --- | --- | --- |
 | OCI 인증 | OCI config profile | Instance Principal |
-| Polling 주기 | 1분 | 15분 |
+| Polling 주기 | 1분 | 3분 |
+| Query window | 5분 | 4분 |
 | CPU warning/critical | 1 / 2 | 80 / 90 |
 | DB volume warning/critical | 1 / 2 | 80 / 90 |
 
 낮은 local threshold는 실제 운영 기준이 아니라 OCI 조회부터 Discord 출력까지 연결됐는지 확인하기 위한
 값이다. 공통 Vault bootstrap, datasource, Discord token 주입과 Monitoring 활성화는 profile 간 동일하다.
-Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 15분을 기다린다.
+Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 3분을 기다린다.
+prod query window는 4분으로 두어 실행 사이에 1분을 겹친다.
 처리 시간이 길어져도 실행이 겹치지 않는다.
 
 ### 현재 DB 상태
