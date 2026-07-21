@@ -1,6 +1,6 @@
 # Monitoring 확장 설계 결정
 
-> 최종 업데이트: 2026-07-20
+> 최종 업데이트: 2026-07-21
 
 이 문서는 OCI Monitoring을 구현하면서 결정한 hexagonal 경계와 설정 관리 방식을 정리한다.
 현재 구현을 설명하는 동시에 AWS CloudWatch, Prometheus 등 다른 provider를 추가할 때의 기준으로 사용한다.
@@ -56,17 +56,19 @@ Observation은 "CPU가 85%였다"만 표현한다. AlertEvent는 "warning thresh
 ## 3. 현재 처리 흐름
 
 ```text
-OCI scheduler
-  -> OCI monitoring adapter
-  -> OCI Monitoring API
-  -> MetricObservation
-  -> ResourceMetricEvaluator
-       -> provider + resourceType + metricKind + unit으로 rule 선택
-       -> threshold 판정
-  -> AlertEvent
-  -> AlertIngestionService
-  -> NotificationPort
-  -> Discord
+@Scheduled poll
+  -> OciMonitoringScheduler
+       -> OciMysqlMetricQuery(compartmentId, dbSystemId, window, resolution)
+       -> OciMonitoringAdapter
+            -> MonitoringClient.summarizeMetricsData(MQL)
+            -> List<MetricObservation>
+       -> ResourceMetricEvaluator
+            -> provider + resourceType + metricKind + unit으로 rule 선택
+            -> threshold/status 판정
+       -> AlertEvent
+       -> AlertIngestionService
+       -> NotificationPort
+       -> Discord
 ```
 
 각 계층의 책임은 다음과 같다.
@@ -78,6 +80,29 @@ OCI scheduler
 | `MetricObservation` | provider 간 공통 metric 계약 | 독립 |
 | `ResourceMetricEvaluator` | rule 선택, threshold 판정, AlertEvent 생성 | 공통 |
 | `AlertEvent` / ingestion / notification | 사건 처리와 출력 | 독립 |
+
+OCI에서는 Scheduler가 query와 운영 threshold/context를 조합하고, Adapter는 OCI SDK 응답을
+`MetricObservation`으로만 변환한다. Evaluator는 Adapter나 OCI MQL을 직접 호출하지 않고 Observation과
+threshold를 받아 `AlertEvent`를 만든다.
+
+### OCI metric 전달 계약
+
+| 단계 | 전달 객체 | OCI-specific 값 | 다음 단계에서 사용하는 값 |
+| --- | --- | --- | --- |
+| 조회 입력 | `OciMysqlMetricQuery` | compartment OCID, DB System OCID, window, resolution | Adapter의 Monitoring API 요청 |
+| API 응답 | OCI `MetricData` | metric name, dimensions, aggregated datapoints | Adapter의 정규화 대상 |
+| 공통 관측값 | `MetricObservation` | `provider=OCI`, namespace, 원본 metric name, dimensions/region labels | evaluator의 rule/threshold 입력 |
+| 평가 context | `AlertContext` + profile threshold | service/team, warning/critical | `AlertEvent`의 routing·severity |
+| 평가 결과 | `AlertEvent` | `source=OCI_MONITORING`, fingerprint, metric/value/threshold | ingestion·Discord |
+
+`MetricObservation`은 다음 값을 보존한다.
+
+- identity: `provider`, `resourceType`, `resourceId`, `resourceName`
+- metric 의미: `metricKind`, `metricNamespace`, `providerMetricName`, `statistic`, `unit`
+- 측정값: `value`, `observedAt`
+- 추적 정보: OCI dimensions, `namespace`, 응답의 `compartmentId`, adapter region을 `labels`에 저장
+
+현재 MQL과 전체 OCI raw payload는 저장하지 않는다.
 
 ## 4. Hexagonal 경계 결정
 
@@ -118,6 +143,12 @@ OCI CPUUtilization
   -> providerMetricName = CPUUtilization
   -> unit = PERCENT
 
+OCI MemoryUtilization
+  -> provider = OCI
+  -> metricKind = MEMORY_UTILIZATION
+  -> providerMetricName = MemoryUtilization
+  -> unit = PERCENT
+
 OCI CurrentConnections
   -> provider = OCI
   -> metricKind = CURRENT_CONNECTIONS
@@ -135,14 +166,38 @@ OCI BackupFailure
   -> metricKind = BACKUP_FAILURES
   -> providerMetricName = BackupFailure
   -> unit = STATUS
+
+OCI DbVolumeUtilization
+  -> provider = OCI
+  -> metricKind = VOLUME_UTILIZATION
+  -> providerMetricName = DbVolumeUtilization
+  -> unit = PERCENT
 ```
 
 `providerMetricName`과 `metricNamespace`는 원본 추적을 위해 보존하고, `metricKind`와 `unit`은
 provider 간 rule 선택에 사용한다. 원본 payload가 필요하면 `rawPayload`에 선택적으로 보존한다.
 
+Adapter는 metric별로 window 안에서 평가할 datapoint를 선택한다.
+
+| OCI metric | MQL resourceType filter | 선택값 | Observation unit |
+| --- | --- | --- | --- |
+| `CPUUtilization` | `mysql`로 제한 | window peak | `PERCENT` |
+| `MemoryUtilization` | `mysql`로 제한 | window peak | `PERCENT` |
+| `CurrentConnections` | optional dimension은 `mysql`만 허용 | 최신 datapoint | `COUNT` |
+| `ActiveConnections` | optional dimension은 `mysql`만 허용 | 최신 datapoint | `COUNT` |
+| `BackupFailure` | optional dimension은 `mysql`만 허용 | window peak (`1=FAILED`) | `STATUS` |
+| `DbVolumeUtilization` | optional dimension은 `mysql`만 허용 | 최신 datapoint | `PERCENT` |
+
+CPU/memory/backup failure는 window 안의 일시적인 값을 놓치지 않도록 peak를 사용하고, 연결 수와 DB
+volume은 현재 상태를 나타내므로 최신 datapoint를 사용한다. `resourceType` dimension이 없는 metric은
+MQL에 해당 filter를 넣지 않되, 응답에 다른 resource type이 있으면 Adapter에서 버린다.
+
+Scheduler는 percent metric을 `pollUtilization` 경로로 공통 평가하고, 연결 수는 `CountThreshold`를
+사용한다. `BackupFailure`는 threshold YAML 없이 status `1`을 CRITICAL로 평가한다.
+
 ### Evaluator는 공통으로 두고 rule을 provider별로 분리한다
 
-`ResourceMetricEvaluator`는 특정 SDK나 source properties를 알지 않는다. 현재 utilization rule은 다음
+`ResourceMetricEvaluator`는 특정 SDK나 source properties를 알지 않는다. 현재 metric rule은 다음
 조합으로 선택한다.
 
 ```text
