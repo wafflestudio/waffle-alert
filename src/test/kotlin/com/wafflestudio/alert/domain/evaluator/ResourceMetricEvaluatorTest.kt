@@ -140,6 +140,44 @@ class ResourceMetricEvaluatorTest {
     }
 
     @Test
+    fun `selects OCI MySQL backup failure rule as critical`() {
+        val event =
+            evaluator.evaluateBackupFailure(
+                observation(
+                    value = 1.0,
+                    metricKind = MetricKind.BACKUP_FAILURES,
+                    providerMetricName = "BackupFailure",
+                    unit = MetricUnit.STATUS,
+                ),
+            )
+
+        requireNotNull(event)
+        assertEquals(Severity.CRITICAL, event.severity)
+        assertEquals("backup-failure", event.ruleName)
+        assertEquals(
+            "oci-monitoring:mysql:ocid1.mysqldbsystem.oc1..example:backup-failure",
+            event.fingerprint,
+        )
+        assertEquals("1.0", event.threshold)
+        assertEquals("STATUS", event.thresholdUnit)
+        assertEquals("wafflestudio-mysql Backup failure is FAILED (threshold: FAILED).", event.description)
+    }
+
+    @Test
+    fun `does not create an event for a successful backup status`() {
+        assertNull(
+            evaluator.evaluateBackupFailure(
+                observation(
+                    value = 0.0,
+                    metricKind = MetricKind.BACKUP_FAILURES,
+                    providerMetricName = "BackupFailure",
+                    unit = MetricUnit.STATUS,
+                ),
+            ),
+        )
+    }
+
+    @Test
     fun `returns no event below warning threshold`() {
         assertNull(evaluator.evaluateUtilization(observation(value = 75.0), threshold))
     }

@@ -49,6 +49,18 @@ class ResourceMetricEvaluator {
             context = context,
         )
 
+    fun evaluateBackupFailure(
+        observation: MetricObservation,
+        context: AlertContext = AlertContext(),
+    ): AlertEvent? =
+        evaluateMetric(
+            observation = observation,
+            warningThreshold = BACKUP_FAILURE_VALUE,
+            criticalThreshold = BACKUP_FAILURE_VALUE,
+            rules = BACKUP_FAILURE_RULES,
+            context = context,
+        )
+
     private fun evaluateMetric(
         observation: MetricObservation,
         warningThreshold: Double,
@@ -98,7 +110,12 @@ class ResourceMetricEvaluator {
     private fun formatValue(
         value: Double,
         unit: MetricUnit,
-    ): String = if (unit == MetricUnit.PERCENT) "$value%" else value.toString()
+    ): String =
+        when (unit) {
+            MetricUnit.PERCENT -> "$value%"
+            MetricUnit.STATUS -> if (value >= BACKUP_FAILURE_VALUE) "FAILED" else "OK"
+            else -> value.toString()
+        }
 
     private fun AlertSource.fingerprintPrefix(): String = name.lowercase().replace('_', '-')
 
@@ -122,6 +139,7 @@ class ResourceMetricEvaluator {
     companion object {
         private const val COMPARISON_OPERATOR = "GREATER_THAN_OR_EQUAL"
         private const val MYSQL_RESOURCE_TYPE = "mysql"
+        private const val BACKUP_FAILURE_VALUE = 1.0
 
         private val UTILIZATION_RULES =
             listOf(
@@ -182,6 +200,20 @@ class ResourceMetricEvaluator {
                     ruleName = "active-connections-high",
                     title = "MySQL active connections high",
                     metricLabel = "Active connections",
+                ),
+            )
+
+        private val BACKUP_FAILURE_RULES =
+            listOf(
+                MetricRule(
+                    provider = MetricProvider.OCI,
+                    resourceType = MYSQL_RESOURCE_TYPE,
+                    metricKind = MetricKind.BACKUP_FAILURES,
+                    unit = MetricUnit.STATUS,
+                    source = AlertSource.OCI_MONITORING,
+                    ruleName = "backup-failure",
+                    title = "MySQL backup failure",
+                    metricLabel = "Backup failure",
                 ),
             )
     }

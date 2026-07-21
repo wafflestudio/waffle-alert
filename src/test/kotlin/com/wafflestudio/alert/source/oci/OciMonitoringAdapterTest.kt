@@ -188,6 +188,48 @@ class OciMonitoringAdapterTest {
     }
 
     @Test
+    fun `maps a mysql backup failure in the query window to a failed status observation`() {
+        val requestSlot = slot<SummarizeMetricsDataRequest>()
+        every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
+            SummarizeMetricsDataResponse
+                .builder()
+                .items(
+                    listOf(
+                        metricData(
+                            metricName = "BackupFailure",
+                            resourceType = null,
+                            dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                            datapoints =
+                                listOf(
+                                    datapoint("2026-07-12T01:03:00Z", 0.0),
+                                    datapoint("2026-07-12T01:04:00Z", 1.0),
+                                    datapoint("2026-07-12T01:05:00Z", 0.0),
+                                ),
+                        ),
+                    ),
+                ).build()
+
+        val observations =
+            adapter.fetchMysqlBackupFailure(
+                OciMysqlMetricQuery(
+                    compartmentId = "ocid1.compartment.oc1..example",
+                    dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                ),
+            )
+
+        assertEquals(1, observations.size)
+        assertEquals(MetricKind.BACKUP_FAILURES, observations.single().metricKind)
+        assertEquals("STATUS", observations.single().unit.name)
+        assertEquals("ocid1.mysqldbsystem.oc1..example", observations.single().labels["dbSystemId"])
+        assertEquals(1.0, observations.single().value)
+        assertEquals(Instant.parse("2026-07-12T01:04:00Z"), observations.single().observedAt)
+        assertEquals(
+            "BackupFailure[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\"}.mean()",
+            requestSlot.captured.summarizeMetricsDataDetails.query,
+        )
+    }
+
+    @Test
     fun `maps mysql DB volume utilization without a resource type dimension`() {
         val requestSlot = slot<SummarizeMetricsDataRequest>()
         every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
@@ -229,6 +271,7 @@ class OciMonitoringAdapterTest {
     private fun metricData(
         metricName: String = "CPUUtilization",
         resourceType: String?,
+        dbSystemId: String? = null,
         datapoints: List<AggregatedDatapoint>,
     ): MetricData =
         MetricData
@@ -241,6 +284,7 @@ class OciMonitoringAdapterTest {
                     put("resourceId", "ocid1.mysqldbsystem.oc1..example")
                     put("resourceName", "wafflestudio-mysql")
                     resourceType?.let { put("resourceType", it) }
+                    dbSystemId?.let { put("dbSystemId", it) }
                 },
             ).aggregatedDatapoints(datapoints)
             .build()

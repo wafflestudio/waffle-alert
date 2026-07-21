@@ -54,6 +54,15 @@ class OciMonitoringAdapter(
             filterByResourceType = false,
         )
 
+    fun fetchMysqlBackupFailure(query: OciMysqlMetricQuery): List<MetricObservation> =
+        fetchMysqlMetric(
+            query = query,
+            metricName = BACKUP_FAILURE_METRIC,
+            metricKind = MetricKind.BACKUP_FAILURES,
+            unit = MetricUnit.STATUS,
+            filterByResourceType = false,
+        )
+
     fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
         fetchMysqlMetric(
             query = query,
@@ -126,7 +135,11 @@ class OciMonitoringAdapter(
                     timestamp.toInstant() to value
                 }
         val selectedObservation =
-            if (metricKind == MetricKind.CPU_UTILIZATION || metricKind == MetricKind.MEMORY_UTILIZATION) {
+            if (
+                metricKind == MetricKind.CPU_UTILIZATION ||
+                metricKind == MetricKind.MEMORY_UTILIZATION ||
+                metricKind == MetricKind.BACKUP_FAILURES
+            ) {
                 observations.maxByOrNull { (_, value) -> value }
             } else {
                 observations.maxByOrNull { (timestamp) -> timestamp }
@@ -176,6 +189,7 @@ class OciMonitoringAdapter(
         private const val MEMORY_UTILIZATION_METRIC = "MemoryUtilization"
         private const val CURRENT_CONNECTIONS_METRIC = "CurrentConnections"
         private const val ACTIVE_CONNECTIONS_METRIC = "ActiveConnections"
+        private const val BACKUP_FAILURE_METRIC = "BackupFailure"
         private const val DB_VOLUME_UTILIZATION_METRIC = "DbVolumeUtilization"
         private const val RESOURCE_ID_DIMENSION = "resourceId"
         private const val RESOURCE_NAME_DIMENSION = "resourceName"

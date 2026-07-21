@@ -94,6 +94,17 @@ class OciMonitoringScheduler(
         )
         pollMetric(
             dbSystemId = dbSystem.id,
+            metricName = "BackupFailure",
+            fetch = { adapter.fetchMysqlBackupFailure(query) },
+            evaluate = { observation ->
+                evaluator.evaluateBackupFailure(
+                    observation = observation,
+                    context = context,
+                )
+            },
+        )
+        pollMetric(
+            dbSystemId = dbSystem.id,
             metricName = "DbVolumeUtilization",
             fetch = { adapter.fetchMysqlDbVolumeUtilization(query) },
             evaluate = { observation ->

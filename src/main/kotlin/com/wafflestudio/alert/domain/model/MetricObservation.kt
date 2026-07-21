@@ -43,6 +43,7 @@ enum class MetricUnit {
     COUNT,
     BYTES,
     MILLISECONDS,
+    STATUS,
     UNKNOWN,
 }
 
