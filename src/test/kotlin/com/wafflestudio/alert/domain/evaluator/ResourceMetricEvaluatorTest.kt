@@ -90,6 +90,33 @@ class ResourceMetricEvaluatorTest {
     }
 
     @Test
+    fun `selects OCI MySQL current connections rule without percent formatting`() {
+        val event =
+            evaluator.evaluateCurrentConnections(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.CURRENT_CONNECTIONS,
+                    providerMetricName = "CurrentConnections",
+                    unit = MetricUnit.COUNT,
+                ),
+                CountThreshold(warning = 80.0, critical = 100.0),
+            )
+
+        requireNotNull(event)
+        assertEquals("current-connections-high", event.ruleName)
+        assertEquals(
+            "oci-monitoring:mysql:ocid1.mysqldbsystem.oc1..example:current-connections-high",
+            event.fingerprint,
+        )
+        assertEquals("85.0", event.value)
+        assertEquals("80.0", event.threshold)
+        assertEquals(
+            "wafflestudio-mysql Current connections is 85.0 (threshold: 80.0).",
+            event.description,
+        )
+    }
+
+    @Test
     fun `returns no event below warning threshold`() {
         assertNull(evaluator.evaluateUtilization(observation(value = 75.0), threshold))
     }
@@ -125,6 +152,7 @@ class ResourceMetricEvaluatorTest {
         value: Double,
         metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
         providerMetricName: String = "CPUUtilization",
+        unit: MetricUnit = MetricUnit.PERCENT,
     ): MetricObservation =
         MetricObservation(
             provider = MetricProvider.OCI,
@@ -135,7 +163,7 @@ class ResourceMetricEvaluatorTest {
             metricNamespace = "oci_mysql_database",
             providerMetricName = providerMetricName,
             statistic = MetricStatistic.MEAN,
-            unit = MetricUnit.PERCENT,
+            unit = unit,
             value = value,
             observedAt = Instant.parse("2026-07-17T00:00:00Z"),
         )

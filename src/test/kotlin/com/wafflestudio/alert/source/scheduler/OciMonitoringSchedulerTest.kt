@@ -34,6 +34,7 @@ class OciMonitoringSchedulerTest {
         val observation = observation(value = 1.5)
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation)
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -67,6 +68,7 @@ class OciMonitoringSchedulerTest {
     fun `does not send an event when evaluator considers observation normal`() {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation(value = 0.5))
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
 
         OciMonitoringScheduler(
@@ -83,6 +85,7 @@ class OciMonitoringSchedulerTest {
     fun `polls DB volume utilization and sends a firing event to ingestion`() {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns
             listOf(
                 observation(
@@ -115,6 +118,7 @@ class OciMonitoringSchedulerTest {
                     providerMetricName = "MemoryUtilization",
                 ),
             )
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -126,6 +130,33 @@ class OciMonitoringSchedulerTest {
         ).poll()
 
         verify(exactly = 1) { adapter.fetchMysqlMemoryUtilization(any()) }
+        verify(exactly = 1) { ingestionService.ingest(any()) }
+    }
+
+    @Test
+    fun `polls current connections and sends a firing event to ingestion`() {
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns
+            listOf(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.CURRENT_CONNECTIONS,
+                    providerMetricName = "CurrentConnections",
+                    unit = MetricUnit.COUNT,
+                ),
+            )
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
+        every { ingestionService.ingest(any()) } just Runs
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(mapOf("enabled" to dbSystem(enabled = true))),
+        ).poll()
+
+        verify(exactly = 1) { adapter.fetchMysqlCurrentConnections(any()) }
         verify(exactly = 1) { ingestionService.ingest(any()) }
     }
 
@@ -153,6 +184,7 @@ class OciMonitoringSchedulerTest {
                 OciMysqlThresholdProperties(
                     cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     memoryUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
+                    currentConnections = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     dbVolumeUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                 ),
         )
@@ -161,6 +193,7 @@ class OciMonitoringSchedulerTest {
         value: Double,
         metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
         providerMetricName: String = "CPUUtilization",
+        unit: MetricUnit = MetricUnit.PERCENT,
     ): MetricObservation =
         MetricObservation(
             provider = MetricProvider.OCI,
@@ -171,7 +204,7 @@ class OciMonitoringSchedulerTest {
             metricNamespace = "oci_mysql_database",
             providerMetricName = providerMetricName,
             statistic = MetricStatistic.MEAN,
-            unit = MetricUnit.PERCENT,
+            unit = unit,
             value = value,
             observedAt = Instant.parse("2026-07-17T00:00:00Z"),
         )

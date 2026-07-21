@@ -1,6 +1,7 @@
 package com.wafflestudio.alert.source.scheduler
 
 import com.wafflestudio.alert.domain.evaluator.AlertContext
+import com.wafflestudio.alert.domain.evaluator.CountThreshold
 import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
 import com.wafflestudio.alert.domain.evaluator.UtilizationThreshold
 import com.wafflestudio.alert.domain.model.AlertEvent
@@ -61,6 +62,19 @@ class OciMonitoringScheduler(
                 evaluator.evaluateUtilization(
                     observation = observation,
                     threshold = UtilizationThreshold(threshold.warning, threshold.critical),
+                    context = context,
+                )
+            },
+        )
+        pollMetric(
+            dbSystemId = dbSystem.id,
+            metricName = "CurrentConnections",
+            fetch = { adapter.fetchMysqlCurrentConnections(query) },
+            evaluate = { observation ->
+                val threshold = dbSystem.thresholds.currentConnections
+                evaluator.evaluateCurrentConnections(
+                    observation = observation,
+                    threshold = CountThreshold(threshold.warning, threshold.critical),
                     context = context,
                 )
             },

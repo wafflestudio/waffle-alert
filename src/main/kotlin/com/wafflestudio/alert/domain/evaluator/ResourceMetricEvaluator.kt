@@ -14,12 +14,40 @@ class ResourceMetricEvaluator {
         observation: MetricObservation,
         threshold: UtilizationThreshold,
         context: AlertContext = AlertContext(),
+    ): AlertEvent? =
+        evaluateMetric(
+            observation = observation,
+            warningThreshold = threshold.warning,
+            criticalThreshold = threshold.critical,
+            rules = UTILIZATION_RULES,
+            context = context,
+        )
+
+    fun evaluateCurrentConnections(
+        observation: MetricObservation,
+        threshold: CountThreshold,
+        context: AlertContext = AlertContext(),
+    ): AlertEvent? =
+        evaluateMetric(
+            observation = observation,
+            warningThreshold = threshold.warning,
+            criticalThreshold = threshold.critical,
+            rules = CONNECTION_RULES,
+            context = context,
+        )
+
+    private fun evaluateMetric(
+        observation: MetricObservation,
+        warningThreshold: Double,
+        criticalThreshold: Double,
+        rules: List<MetricRule>,
+        context: AlertContext,
     ): AlertEvent? {
-        val rule = UTILIZATION_RULES.firstOrNull { it.matches(observation) } ?: return null
+        val rule = rules.firstOrNull { it.matches(observation) } ?: return null
         val (severity, matchedThreshold) =
             when {
-                observation.value >= threshold.critical -> Severity.CRITICAL to threshold.critical
-                observation.value >= threshold.warning -> Severity.WARNING to threshold.warning
+                observation.value >= criticalThreshold -> Severity.CRITICAL to criticalThreshold
+                observation.value >= warningThreshold -> Severity.WARNING to warningThreshold
                 else -> return null
             }
 
@@ -33,8 +61,9 @@ class ResourceMetricEvaluator {
             ruleName = rule.ruleName,
             title = rule.title,
             description =
-                "${observation.resourceName} ${rule.metricLabel} is ${observation.value}% " +
-                    "(threshold: $matchedThreshold%).",
+                "${observation.resourceName} ${rule.metricLabel} is " +
+                    "${formatValue(observation.value, observation.unit)} " +
+                    "(threshold: ${formatValue(matchedThreshold, observation.unit)}).",
             service = context.service,
             team = context.team,
             resourceType = observation.resourceType,
@@ -53,9 +82,14 @@ class ResourceMetricEvaluator {
         )
     }
 
+    private fun formatValue(
+        value: Double,
+        unit: MetricUnit,
+    ): String = if (unit == MetricUnit.PERCENT) "$value%" else value.toString()
+
     private fun AlertSource.fingerprintPrefix(): String = name.lowercase().replace('_', '-')
 
-    private data class UtilizationRule(
+    private data class MetricRule(
         val provider: MetricProvider,
         val resourceType: String,
         val metricKind: MetricKind,
@@ -78,7 +112,7 @@ class ResourceMetricEvaluator {
 
         private val UTILIZATION_RULES =
             listOf(
-                UtilizationRule(
+                MetricRule(
                     provider = MetricProvider.OCI,
                     resourceType = MYSQL_RESOURCE_TYPE,
                     metricKind = MetricKind.CPU_UTILIZATION,
@@ -88,7 +122,7 @@ class ResourceMetricEvaluator {
                     title = "MySQL CPU utilization high",
                     metricLabel = "CPU utilization",
                 ),
-                UtilizationRule(
+                MetricRule(
                     provider = MetricProvider.OCI,
                     resourceType = MYSQL_RESOURCE_TYPE,
                     metricKind = MetricKind.MEMORY_UTILIZATION,
@@ -98,7 +132,7 @@ class ResourceMetricEvaluator {
                     title = "MySQL memory utilization high",
                     metricLabel = "Memory utilization",
                 ),
-                UtilizationRule(
+                MetricRule(
                     provider = MetricProvider.OCI,
                     resourceType = MYSQL_RESOURCE_TYPE,
                     metricKind = MetricKind.VOLUME_UTILIZATION,
@@ -107,6 +141,20 @@ class ResourceMetricEvaluator {
                     ruleName = "db-volume-utilization-high",
                     title = "MySQL DB volume utilization high",
                     metricLabel = "DB volume utilization",
+                ),
+            )
+
+        private val CONNECTION_RULES =
+            listOf(
+                MetricRule(
+                    provider = MetricProvider.OCI,
+                    resourceType = MYSQL_RESOURCE_TYPE,
+                    metricKind = MetricKind.CURRENT_CONNECTIONS,
+                    unit = MetricUnit.COUNT,
+                    source = AlertSource.OCI_MONITORING,
+                    ruleName = "current-connections-high",
+                    title = "MySQL current connections high",
+                    metricLabel = "Current connections",
                 ),
             )
     }
@@ -120,6 +168,16 @@ data class UtilizationThreshold(
         require(warning >= 0.0) { "Utilization warning threshold must be non-negative" }
         require(warning < critical) { "Utilization warning threshold must be lower than critical threshold" }
         require(critical <= 100.0) { "Utilization critical threshold must not exceed 100" }
+    }
+}
+
+data class CountThreshold(
+    val warning: Double,
+    val critical: Double,
+) {
+    init {
+        require(warning >= 0.0) { "Count warning threshold must be non-negative" }
+        require(warning < critical) { "Count warning threshold must be lower than critical threshold" }
     }
 }
 

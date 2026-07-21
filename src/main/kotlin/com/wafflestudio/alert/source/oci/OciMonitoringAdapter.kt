@@ -36,6 +36,15 @@ class OciMonitoringAdapter(
             filterByResourceType = true,
         )
 
+    fun fetchMysqlCurrentConnections(query: OciMysqlMetricQuery): List<MetricObservation> =
+        fetchMysqlMetric(
+            query = query,
+            metricName = CURRENT_CONNECTIONS_METRIC,
+            metricKind = MetricKind.CURRENT_CONNECTIONS,
+            unit = MetricUnit.COUNT,
+            filterByResourceType = false,
+        )
+
     fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
         fetchMysqlMetric(
             query = query,
@@ -156,6 +165,7 @@ class OciMonitoringAdapter(
         private const val MYSQL_RESOURCE_TYPE = "mysql"
         private const val CPU_UTILIZATION_METRIC = "CPUUtilization"
         private const val MEMORY_UTILIZATION_METRIC = "MemoryUtilization"
+        private const val CURRENT_CONNECTIONS_METRIC = "CurrentConnections"
         private const val DB_VOLUME_UTILIZATION_METRIC = "DbVolumeUtilization"
         private const val RESOURCE_ID_DIMENSION = "resourceId"
         private const val RESOURCE_NAME_DIMENSION = "resourceName"

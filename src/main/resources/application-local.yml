@@ -23,6 +23,9 @@ alert:
             memory-utilization:
               warning: 1.0
               critical: 2.0
+            current-connections:
+              warning: 1.0
+              critical: 2.0
             db-volume-utilization:
               warning: 1.0
               critical: 2.0

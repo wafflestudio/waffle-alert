@@ -110,6 +110,45 @@ class OciMonitoringAdapterTest {
     }
 
     @Test
+    fun `maps the latest mysql current connections datapoint to an observation`() {
+        val requestSlot = slot<SummarizeMetricsDataRequest>()
+        every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
+            SummarizeMetricsDataResponse
+                .builder()
+                .items(
+                    listOf(
+                        metricData(
+                            metricName = "CurrentConnections",
+                            resourceType = null,
+                            datapoints =
+                                listOf(
+                                    datapoint("2026-07-12T01:04:00Z", 120.0),
+                                    datapoint("2026-07-12T01:05:00Z", 85.0),
+                                ),
+                        ),
+                    ),
+                ).build()
+
+        val observations =
+            adapter.fetchMysqlCurrentConnections(
+                OciMysqlMetricQuery(
+                    compartmentId = "ocid1.compartment.oc1..example",
+                    dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                ),
+            )
+
+        assertEquals(1, observations.size)
+        assertEquals(MetricKind.CURRENT_CONNECTIONS, observations.single().metricKind)
+        assertEquals("COUNT", observations.single().unit.name)
+        assertEquals(85.0, observations.single().value)
+        assertEquals(Instant.parse("2026-07-12T01:05:00Z"), observations.single().observedAt)
+        assertEquals(
+            "CurrentConnections[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\"}.mean()",
+            requestSlot.captured.summarizeMetricsDataDetails.query,
+        )
+    }
+
+    @Test
     fun `maps mysql DB volume utilization without a resource type dimension`() {
         val requestSlot = slot<SummarizeMetricsDataRequest>()
         every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
