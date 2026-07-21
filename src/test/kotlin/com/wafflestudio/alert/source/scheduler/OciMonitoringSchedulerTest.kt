@@ -33,6 +33,7 @@ class OciMonitoringSchedulerTest {
         val disabledDbSystem = dbSystem(id = "disabled", enabled = false)
         val observation = observation(value = 1.5)
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation)
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -65,6 +66,7 @@ class OciMonitoringSchedulerTest {
     @Test
     fun `does not send an event when evaluator considers observation normal`() {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation(value = 0.5))
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
 
         OciMonitoringScheduler(
@@ -80,6 +82,7 @@ class OciMonitoringSchedulerTest {
     @Test
     fun `polls DB volume utilization and sends a firing event to ingestion`() {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns
             listOf(
                 observation(
@@ -98,6 +101,31 @@ class OciMonitoringSchedulerTest {
         ).poll()
 
         verify(exactly = 1) { adapter.fetchMysqlDbVolumeUtilization(any()) }
+        verify(exactly = 1) { ingestionService.ingest(any()) }
+    }
+
+    @Test
+    fun `polls memory utilization and sends a firing event to ingestion`() {
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns
+            listOf(
+                observation(
+                    value = 1.5,
+                    metricKind = MetricKind.MEMORY_UTILIZATION,
+                    providerMetricName = "MemoryUtilization",
+                ),
+            )
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
+        every { ingestionService.ingest(any()) } just Runs
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(mapOf("enabled" to dbSystem(enabled = true))),
+        ).poll()
+
+        verify(exactly = 1) { adapter.fetchMysqlMemoryUtilization(any()) }
         verify(exactly = 1) { ingestionService.ingest(any()) }
     }
 
@@ -124,6 +152,7 @@ class OciMonitoringSchedulerTest {
             thresholds =
                 OciMysqlThresholdProperties(
                     cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
+                    memoryUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     dbVolumeUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                 ),
         )

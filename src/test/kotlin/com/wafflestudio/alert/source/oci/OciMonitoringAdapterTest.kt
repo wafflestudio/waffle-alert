@@ -71,6 +71,45 @@ class OciMonitoringAdapterTest {
     }
 
     @Test
+    fun `maps the peak mysql memory datapoint to an observation`() {
+        val requestSlot = slot<SummarizeMetricsDataRequest>()
+        every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns
+            SummarizeMetricsDataResponse
+                .builder()
+                .items(
+                    listOf(
+                        metricData(
+                            metricName = "MemoryUtilization",
+                            resourceType = "mysql",
+                            datapoints =
+                                listOf(
+                                    datapoint("2026-07-12T01:03:00Z", 61.0),
+                                    datapoint("2026-07-12T01:04:00Z", 88.1),
+                                    datapoint("2026-07-12T01:05:00Z", 70.0),
+                                ),
+                        ),
+                    ),
+                ).build()
+
+        val observations =
+            adapter.fetchMysqlMemoryUtilization(
+                OciMysqlMetricQuery(
+                    compartmentId = "ocid1.compartment.oc1..example",
+                    dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                ),
+            )
+
+        assertEquals(1, observations.size)
+        assertEquals(MetricKind.MEMORY_UTILIZATION, observations.single().metricKind)
+        assertEquals(88.1, observations.single().value)
+        assertEquals(Instant.parse("2026-07-12T01:04:00Z"), observations.single().observedAt)
+        assertEquals(
+            "MemoryUtilization[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\", resourceType = \"mysql\"}.mean()",
+            requestSlot.captured.summarizeMetricsDataDetails.query,
+        )
+    }
+
+    @Test
     fun `maps mysql DB volume utilization without a resource type dimension`() {
         val requestSlot = slot<SummarizeMetricsDataRequest>()
         every { monitoringClient.summarizeMetricsData(capture(requestSlot)) } returns

@@ -73,6 +73,23 @@ class ResourceMetricEvaluatorTest {
     }
 
     @Test
+    fun `selects OCI MySQL memory utilization rule`() {
+        val event =
+            evaluator.evaluateUtilization(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.MEMORY_UTILIZATION,
+                    providerMetricName = "MemoryUtilization",
+                ),
+                threshold,
+            )
+
+        requireNotNull(event)
+        assertEquals("memory-utilization-high", event.ruleName)
+        assertEquals("MemoryUtilization", event.metricName)
+    }
+
+    @Test
     fun `returns no event below warning threshold`() {
         assertNull(evaluator.evaluateUtilization(observation(value = 75.0), threshold))
     }
@@ -99,9 +116,9 @@ class ResourceMetricEvaluatorTest {
 
     @Test
     fun `returns no event when metric kind has no matching rule`() {
-        val memoryObservation = observation(value = 95.0).copy(metricKind = MetricKind.MEMORY_UTILIZATION)
+        val unsupportedObservation = observation(value = 95.0).copy(metricKind = MetricKind.BACKUP_FAILURES)
 
-        assertNull(evaluator.evaluateUtilization(memoryObservation, threshold))
+        assertNull(evaluator.evaluateUtilization(unsupportedObservation, threshold))
     }
 
     private fun observation(

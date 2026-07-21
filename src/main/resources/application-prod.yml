@@ -18,6 +18,9 @@ alert:
             cpu-utilization:
               warning: 80.0
               critical: 90.0
+            memory-utilization:
+              warning: 80.0
+              critical: 90.0
             db-volume-utilization:
               warning: 80.0
               critical: 90.0

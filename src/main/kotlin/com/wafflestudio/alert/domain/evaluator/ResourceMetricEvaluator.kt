@@ -91,6 +91,16 @@ class ResourceMetricEvaluator {
                 UtilizationRule(
                     provider = MetricProvider.OCI,
                     resourceType = MYSQL_RESOURCE_TYPE,
+                    metricKind = MetricKind.MEMORY_UTILIZATION,
+                    unit = MetricUnit.PERCENT,
+                    source = AlertSource.OCI_MONITORING,
+                    ruleName = "memory-utilization-high",
+                    title = "MySQL memory utilization high",
+                    metricLabel = "Memory utilization",
+                ),
+                UtilizationRule(
+                    provider = MetricProvider.OCI,
+                    resourceType = MYSQL_RESOURCE_TYPE,
                     metricKind = MetricKind.VOLUME_UTILIZATION,
                     unit = MetricUnit.PERCENT,
                     source = AlertSource.OCI_MONITORING,

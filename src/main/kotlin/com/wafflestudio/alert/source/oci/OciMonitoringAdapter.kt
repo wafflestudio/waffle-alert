@@ -27,6 +27,15 @@ class OciMonitoringAdapter(
             filterByResourceType = true,
         )
 
+    fun fetchMysqlMemoryUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+        fetchMysqlMetric(
+            query = query,
+            metricName = MEMORY_UTILIZATION_METRIC,
+            metricKind = MetricKind.MEMORY_UTILIZATION,
+            unit = MetricUnit.PERCENT,
+            filterByResourceType = true,
+        )
+
     fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
         fetchMysqlMetric(
             query = query,
@@ -99,7 +108,7 @@ class OciMonitoringAdapter(
                     timestamp.toInstant() to value
                 }
         val selectedObservation =
-            if (metricKind == MetricKind.CPU_UTILIZATION) {
+            if (metricKind == MetricKind.CPU_UTILIZATION || metricKind == MetricKind.MEMORY_UTILIZATION) {
                 observations.maxByOrNull { (_, value) -> value }
             } else {
                 observations.maxByOrNull { (timestamp) -> timestamp }
@@ -146,6 +155,7 @@ class OciMonitoringAdapter(
         private const val MYSQL_NAMESPACE = "oci_mysql_database"
         private const val MYSQL_RESOURCE_TYPE = "mysql"
         private const val CPU_UTILIZATION_METRIC = "CPUUtilization"
+        private const val MEMORY_UTILIZATION_METRIC = "MemoryUtilization"
         private const val DB_VOLUME_UTILIZATION_METRIC = "DbVolumeUtilization"
         private const val RESOURCE_ID_DIMENSION = "resourceId"
         private const val RESOURCE_NAME_DIMENSION = "resourceName"
