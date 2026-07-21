@@ -35,6 +35,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation)
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
+        every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -69,6 +70,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns listOf(observation(value = 0.5))
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
+        every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
 
         OciMonitoringScheduler(
@@ -86,6 +88,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
         every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
+        every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns
             listOf(
                 observation(
@@ -119,6 +122,7 @@ class OciMonitoringSchedulerTest {
                 ),
             )
         every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
+        every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -130,6 +134,34 @@ class OciMonitoringSchedulerTest {
         ).poll()
 
         verify(exactly = 1) { adapter.fetchMysqlMemoryUtilization(any()) }
+        verify(exactly = 1) { ingestionService.ingest(any()) }
+    }
+
+    @Test
+    fun `polls active connections and sends a firing event to ingestion`() {
+        every { adapter.fetchMysqlCpuUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlMemoryUtilization(any()) } returns emptyList()
+        every { adapter.fetchMysqlCurrentConnections(any()) } returns emptyList()
+        every { adapter.fetchMysqlActiveConnections(any()) } returns
+            listOf(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.ACTIVE_CONNECTIONS,
+                    providerMetricName = "ActiveConnections",
+                    unit = MetricUnit.COUNT,
+                ),
+            )
+        every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
+        every { ingestionService.ingest(any()) } just Runs
+
+        OciMonitoringScheduler(
+            adapter = adapter,
+            evaluator = evaluator,
+            ingestionService = ingestionService,
+            properties = properties(mapOf("enabled" to dbSystem(enabled = true))),
+        ).poll()
+
+        verify(exactly = 1) { adapter.fetchMysqlActiveConnections(any()) }
         verify(exactly = 1) { ingestionService.ingest(any()) }
     }
 
@@ -146,6 +178,7 @@ class OciMonitoringSchedulerTest {
                     unit = MetricUnit.COUNT,
                 ),
             )
+        every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
         every { ingestionService.ingest(any()) } just Runs
 
@@ -185,6 +218,7 @@ class OciMonitoringSchedulerTest {
                     cpuUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     memoryUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     currentConnections = OciThresholdProperties(warning = 1.0, critical = 2.0),
+                    activeConnections = OciThresholdProperties(warning = 1.0, critical = 2.0),
                     dbVolumeUtilization = OciThresholdProperties(warning = 1.0, critical = 2.0),
                 ),
         )

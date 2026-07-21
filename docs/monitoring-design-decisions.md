@@ -123,6 +123,12 @@ OCI CurrentConnections
   -> metricKind = CURRENT_CONNECTIONS
   -> providerMetricName = CurrentConnections
   -> unit = COUNT
+
+OCI ActiveConnections
+  -> provider = OCI
+  -> metricKind = ACTIVE_CONNECTIONS
+  -> providerMetricName = ActiveConnections
+  -> unit = COUNT
 ```
 
 `providerMetricName`과 `metricNamespace`는 원본 추적을 위해 보존하고, `metricKind`와 `unit`은
@@ -137,8 +143,8 @@ provider 간 rule 선택에 사용한다. 원본 payload가 필요하면 `rawPay
 provider + resourceType + metricKind + unit
 ```
 
-현재 등록된 rule은 OCI MySQL CPU, memory, current connections, DB volume이다. 일치하는 rule이 없으면
-이벤트를 만들지 않는다.
+현재 등록된 rule은 OCI MySQL CPU, memory, current connections, active connections, DB volume이다.
+일치하는 rule이 없으면 이벤트를 만들지 않는다.
 따라서 `AWS_CLOUDWATCH` observation이 들어와도 AWS rule을 명시적으로 추가하기 전에는 OCI rule로
 잘못 평가되지 않는다.
 
@@ -203,10 +209,11 @@ local과 prod를 바로 비교할 수 있게 한다.
 | CPU warning/critical | 1 / 2 | 80 / 90 |
 | Memory warning/critical | 1 / 2 | 80 / 90 |
 | Current connections warning/critical (count) | 1 / 2 | 80 / 100 |
+| Active connections warning/critical (count) | 1 / 2 | 80 / 100 |
 | DB volume warning/critical | 1 / 2 | 80 / 90 |
 
-Current connections threshold는 사용률이 아니라 동시 연결 수의 절대값이며, prod의 80 / 100은 초기 기준이므로
-DB System의 연결 용량에 맞춰 조정한다.
+Current/active connections threshold는 사용률이 아니라 연결 수의 절대값이며, prod의 80 / 100은 초기
+기준이므로 DB System의 연결 용량과 workload에 맞춰 조정한다.
 낮은 local threshold는 실제 운영 기준이 아니라 OCI 조회부터 Discord 출력까지 연결됐는지 확인하기 위한
 값이다. 공통 Vault bootstrap, datasource, Discord token 주입과 Monitoring 활성화는 profile 간 동일하다.
 Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 3분을 기다린다.
@@ -299,7 +306,7 @@ Vault, threshold는 YAML로 leaf 책임을 분리한다. key를 변경하면 기
 | --- | --- | --- |
 | 상태 수명주기 | OCI는 정상값을 버리고 `FIRING`만 생성하므로 지속 장애는 polling마다 알림이 오고 `RESOLVED`는 오지 않는다. | Incident를 구현해 fingerprint별 `FIRING`/`REPEATED`/`RESOLVED` 상태와 알림 억제를 관리한다. |
 | Metric 누락 구간 | Incident 구현 전 임시 보완으로 prod polling을 3분, query window를 4분으로 두고 1분을 겹친다. CPU는 window의 peak, DB volume은 최신값을 평가한다. local은 기존 1분 polling/5분 window를 유지한다. | 겹친 구간의 중복 event는 Incident에서 억제한다. 처리 지연이 1분을 넘는 운영 상황이 확인되면 window를 다시 조정한다. |
-| Metric 범위 | OCI MySQL CPU, memory, current connections, DB volume을 지원한다. | 필요한 순서대로 active connections, backup failure adapter와 rule을 추가한다. |
+| Metric 범위 | OCI MySQL CPU, memory, current connections, active connections, DB volume을 지원한다. | 필요한 순서대로 backup failure adapter와 rule을 추가한다. |
 | 무데이터 구분 | 빈 응답이나 dimension/datapoint 누락은 event 없이 버려져 정상 상태와 구분되지 않는다. | poll 성공 여부와 no-data 상태를 metric 또는 별도 alert로 노출한다. |
 | 원본 추적 정보 | OCI dimensions, namespace, compartment, region은 label로 남지만 MQL과 raw payload는 보존하지 않는다. | 장애 분석에 필요해지면 MQL과 provider 응답 식별 정보를 `annotations` 또는 `rawPayload`에 보존한다. |
 

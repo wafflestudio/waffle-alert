@@ -81,6 +81,19 @@ class OciMonitoringScheduler(
         )
         pollMetric(
             dbSystemId = dbSystem.id,
+            metricName = "ActiveConnections",
+            fetch = { adapter.fetchMysqlActiveConnections(query) },
+            evaluate = { observation ->
+                val threshold = dbSystem.thresholds.activeConnections
+                evaluator.evaluateActiveConnections(
+                    observation = observation,
+                    threshold = CountThreshold(threshold.warning, threshold.critical),
+                    context = context,
+                )
+            },
+        )
+        pollMetric(
+            dbSystemId = dbSystem.id,
             metricName = "DbVolumeUtilization",
             fetch = { adapter.fetchMysqlDbVolumeUtilization(query) },
             evaluate = { observation ->

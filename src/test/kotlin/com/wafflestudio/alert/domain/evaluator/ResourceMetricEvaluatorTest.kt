@@ -117,6 +117,29 @@ class ResourceMetricEvaluatorTest {
     }
 
     @Test
+    fun `selects OCI MySQL active connections rule`() {
+        val event =
+            evaluator.evaluateActiveConnections(
+                observation(
+                    value = 85.0,
+                    metricKind = MetricKind.ACTIVE_CONNECTIONS,
+                    providerMetricName = "ActiveConnections",
+                    unit = MetricUnit.COUNT,
+                ),
+                CountThreshold(warning = 80.0, critical = 100.0),
+            )
+
+        requireNotNull(event)
+        assertEquals("active-connections-high", event.ruleName)
+        assertEquals(
+            "oci-monitoring:mysql:ocid1.mysqldbsystem.oc1..example:active-connections-high",
+            event.fingerprint,
+        )
+        assertEquals("ActiveConnections", event.metricName)
+        assertEquals("wafflestudio-mysql Active connections is 85.0 (threshold: 80.0).", event.description)
+    }
+
+    @Test
     fun `returns no event below warning threshold`() {
         assertNull(evaluator.evaluateUtilization(observation(value = 75.0), threshold))
     }

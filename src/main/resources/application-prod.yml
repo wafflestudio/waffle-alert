@@ -24,6 +24,9 @@ alert:
             current-connections:
               warning: 80.0
               critical: 100.0
+            active-connections:
+              warning: 80.0
+              critical: 100.0
             db-volume-utilization:
               warning: 80.0
               critical: 90.0

@@ -32,7 +32,20 @@ class ResourceMetricEvaluator {
             observation = observation,
             warningThreshold = threshold.warning,
             criticalThreshold = threshold.critical,
-            rules = CONNECTION_RULES,
+            rules = CURRENT_CONNECTION_RULES,
+            context = context,
+        )
+
+    fun evaluateActiveConnections(
+        observation: MetricObservation,
+        threshold: CountThreshold,
+        context: AlertContext = AlertContext(),
+    ): AlertEvent? =
+        evaluateMetric(
+            observation = observation,
+            warningThreshold = threshold.warning,
+            criticalThreshold = threshold.critical,
+            rules = ACTIVE_CONNECTION_RULES,
             context = context,
         )
 
@@ -144,7 +157,7 @@ class ResourceMetricEvaluator {
                 ),
             )
 
-        private val CONNECTION_RULES =
+        private val CURRENT_CONNECTION_RULES =
             listOf(
                 MetricRule(
                     provider = MetricProvider.OCI,
@@ -155,6 +168,20 @@ class ResourceMetricEvaluator {
                     ruleName = "current-connections-high",
                     title = "MySQL current connections high",
                     metricLabel = "Current connections",
+                ),
+            )
+
+        private val ACTIVE_CONNECTION_RULES =
+            listOf(
+                MetricRule(
+                    provider = MetricProvider.OCI,
+                    resourceType = MYSQL_RESOURCE_TYPE,
+                    metricKind = MetricKind.ACTIVE_CONNECTIONS,
+                    unit = MetricUnit.COUNT,
+                    source = AlertSource.OCI_MONITORING,
+                    ruleName = "active-connections-high",
+                    title = "MySQL active connections high",
+                    metricLabel = "Active connections",
                 ),
             )
     }
