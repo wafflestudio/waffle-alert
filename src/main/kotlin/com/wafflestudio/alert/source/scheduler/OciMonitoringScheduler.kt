@@ -11,6 +11,7 @@ import com.wafflestudio.alert.source.oci.OciMonitoringAdapter
 import com.wafflestudio.alert.source.oci.OciMonitoringProperties
 import com.wafflestudio.alert.source.oci.OciMysqlDbSystemProperties
 import com.wafflestudio.alert.source.oci.OciMysqlMetricQuery
+import com.wafflestudio.alert.source.oci.OciThresholdProperties
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 
@@ -40,31 +41,19 @@ class OciMonitoringScheduler(
             )
         val context = AlertContext(dbSystem.service, dbSystem.team)
 
-        pollMetric(
+        pollUtilization(
             dbSystemId = dbSystem.id,
             metricName = "CPUUtilization",
+            threshold = dbSystem.thresholds.cpuUtilization,
             fetch = { adapter.fetchMysqlCpuUtilization(query) },
-            evaluate = { observation ->
-                val threshold = dbSystem.thresholds.cpuUtilization
-                evaluator.evaluateUtilization(
-                    observation = observation,
-                    threshold = UtilizationThreshold(threshold.warning, threshold.critical),
-                    context = context,
-                )
-            },
+            context = context,
         )
-        pollMetric(
+        pollUtilization(
             dbSystemId = dbSystem.id,
             metricName = "MemoryUtilization",
+            threshold = dbSystem.thresholds.memoryUtilization,
             fetch = { adapter.fetchMysqlMemoryUtilization(query) },
-            evaluate = { observation ->
-                val threshold = dbSystem.thresholds.memoryUtilization
-                evaluator.evaluateUtilization(
-                    observation = observation,
-                    threshold = UtilizationThreshold(threshold.warning, threshold.critical),
-                    context = context,
-                )
-            },
+            context = context,
         )
         pollMetric(
             dbSystemId = dbSystem.id,
@@ -103,12 +92,27 @@ class OciMonitoringScheduler(
                 )
             },
         )
-        pollMetric(
+        pollUtilization(
             dbSystemId = dbSystem.id,
             metricName = "DbVolumeUtilization",
+            threshold = dbSystem.thresholds.dbVolumeUtilization,
             fetch = { adapter.fetchMysqlDbVolumeUtilization(query) },
+            context = context,
+        )
+    }
+
+    private fun pollUtilization(
+        dbSystemId: String,
+        metricName: String,
+        threshold: OciThresholdProperties,
+        fetch: () -> List<MetricObservation>,
+        context: AlertContext,
+    ) {
+        pollMetric(
+            dbSystemId = dbSystemId,
+            metricName = metricName,
+            fetch = fetch,
             evaluate = { observation ->
-                val threshold = dbSystem.thresholds.dbVolumeUtilization
                 evaluator.evaluateUtilization(
                     observation = observation,
                     threshold = UtilizationThreshold(threshold.warning, threshold.critical),

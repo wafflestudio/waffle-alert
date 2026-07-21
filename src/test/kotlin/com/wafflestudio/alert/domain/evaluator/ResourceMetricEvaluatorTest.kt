@@ -209,6 +209,16 @@ class ResourceMetricEvaluatorTest {
         assertNull(evaluator.evaluateUtilization(unsupportedObservation, threshold))
     }
 
+    @Test
+    fun `does not apply a count rule to a utilization observation`() {
+        assertNull(
+            evaluator.evaluateCurrentConnections(
+                observation(value = 95.0),
+                CountThreshold(warning = 80.0, critical = 100.0),
+            ),
+        )
+    }
+
     private fun observation(
         value: Double,
         metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
