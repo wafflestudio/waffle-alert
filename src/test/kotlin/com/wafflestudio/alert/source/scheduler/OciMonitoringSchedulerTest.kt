@@ -245,8 +245,6 @@ class OciMonitoringSchedulerTest {
         OciMysqlDbSystemProperties(
             id = id,
             compartmentId = "ocid1.compartment.oc1..example",
-            service = "platform",
-            team = "infra",
             enabled = enabled,
             thresholds =
                 OciMysqlThresholdProperties(

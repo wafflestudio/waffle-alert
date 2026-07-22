@@ -6,26 +6,24 @@
 
 | 환경 | DB | secret 주입 |
 | --- | --- | --- |
-| **로컬 Monitoring E2E** | 사용하지 않음 | Vault는 읽지만 DB auto-configuration을 실행 옵션으로 제외 |
+| **로컬 Monitoring E2E** | Docker MySQL | 환경변수로 Discord와 Monitoring 대상 설정 주입 |
 | **테스트(CI)** | Testcontainers MySQL | 컨테이너가 임시 생성 + `@ServiceConnection` 자동 주입 |
 | **운영(prod)** | MySQL | **OCI Vault** 주입 (`spring-boot-starter-waffle-oci-vault`) |
 
 - 현재 AlertEvent 처리 경로는 DB에 저장하지 않고 Discord로 바로 전달한다.
 - Incident/EventLog entity와 Flyway schema는 이후 fingerprint 묶기와 상태 저장을 위해 먼저 만들어졌다.
 - Repository와 IncidentService는 아직 TODO지만 JPA/Flyway auto-configuration 때문에 기본 기동은 DB 연결을 요구한다.
-- Vault의 DB는 private endpoint라 로컬 머신에서 route가 없어 connect timeout이 발생하고, OKE Pod에서는 VCN 내부 경로로 접근한다.
+- 운영 DB와 Vault는 로컬에서 접근하지 않는다.
 
 ### 로컬 실행 (동작 확인됨)
 
-Monitoring에서 Discord까지 확인할 때는 현재 사용하지 않는 DB 계층을 실행 옵션으로 제외한다.
+기존 로컬 실행과 동일하게 Docker MySQL을 먼저 실행한다.
 
 ```bash
-./gradlew bootRun --args='--spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration'
+docker compose up -d
+./gradlew bootRun
 curl http://localhost:8080/actuator/health
 ```
-
-DB를 포함한 전체 context를 로컬에서 실행하려면 private endpoint로 연결되는 VPN, bastion tunnel 또는
-별도 local DB 설정이 필요하다.
 
 스키마는 Flyway가 관리 (`src/main/resources/db/migration`).
 DB 스키마 추가는 반드시 위 경로에 ddl 파일로 추가해줘야 flyway 충돌이 발생하지 않음
@@ -38,43 +36,31 @@ DB 스키마 추가는 반드시 위 경로에 ddl 파일로 추가해줘야 fly
 - **OCI Cost/Monitoring은 공용 API**라 로컬에서 `~/.oci/config`만 있으면 직접 호출된다 (클러스터 무관). 즉 OCI 연동 개발에 공용 dev DB가 필요 없다.
 - 공용 dev DB가 정말 필요해지는 시점(데이터 공유 / 24h 축적 / 배포 리허설)이 오면 그때 추가한다.
 
-→ **결론: local 프로파일에서 OCI CLI 인증으로 Vault와 Monitoring API를 직접 호출하고, 현재 사용하지
-않는 persistence auto-configuration은 Monitoring E2E에서만 제외한다.**
+→ **결론: local 프로파일은 Docker MySQL과 직접 주입한 환경변수를 사용하고, OCI Monitoring API는
+OCI CLI 인증으로 호출한다. Vault는 prod에서만 사용한다.**
 
 ### 로컬 OCI Monitoring -> Discord 확인
 
-로컬 OCI 조회와 Vault 조회는 `~/.oci/config`의 OCI CLI profile을 사용한다. 기본 `local` 프로파일은
-`oci.auth.type=config`으로 동작하고, 운영 `prod` 프로파일은 Instance Principal을 사용한다.
+로컬 OCI 조회는 `~/.oci/config`의 OCI CLI profile을 사용한다. 기본 `local` 프로파일은
+`oci.auth.type=config`으로 동작하고, 운영 `prod` 프로파일은 Instance Principal과 Vault를 사용한다.
 
 기본 `local` 프로파일은 Discord 전달 확인을 위해 threshold만 낮게 덮어쓴다.
 polling 주기는 local 1분, prod 3분이다. prod는 4분 window로 조회해 실행 사이에 1분을 겹친다.
-DB System OCID와 compartment OCID를 포함한 공통 설정은 Vault에서 읽으므로 별도 export가 필요 없다.
-Vault secret의 `spring.datasource.*`는 모니터링 대상 DB가 아니라 `waffle-alert` 자체 DB를 가리켜야 한다.
-Docker MySQL은 사용하지 않는다.
+DB System OCID와 compartment OCID, 대상 활성화 여부, Discord bot token은 커밋하지 않고
+환경변수로 주입한다.
 
 ```bash
 # ~/.oci/config의 DEFAULT가 아닌 profile을 사용할 때만 지정한다.
 export OCI_CONFIG_PROFILE='PROFILE_NAME'
-./gradlew bootRun --args='--spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration'
+export DISCORD_BOT_TOKEN='...'
+export OCI_MONITORING_DB_SYSTEM_ID='ocid1.mysqldbsystem...'
+export OCI_MONITORING_COMPARTMENT_ID='ocid1.compartment...'
+export OCI_MONITORING_DB_SYSTEM_ENABLED='true'
+docker compose up -d
+./gradlew bootRun
 ```
 
-Vault JSON에는 최소한 다음 값이 있어야 한다.
-
-```text
-spring.datasource.url
-spring.datasource.username
-spring.datasource.password
-discord.bot-token
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.id
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.compartment-id
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.service
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.team
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.enabled
-```
-
-`db-systems`는 이름을 key로 쓰는 map이다. 같은 `wafflestudio-mysql` key 아래 Vault의 공통값과
-프로파일 YAML의 threshold가 병합된다. `local`은 Discord 전달 확인을 위한 낮은 값을 사용하고,
-`prod`는 운영값을 사용한다.
+`local`은 Discord 전달 확인을 위한 낮은 threshold를 사용하고, `prod`는 운영값을 사용한다.
 
 조회 실패는 애플리케이션 로그의 `Failed to poll OCI MySQL metric`에서 확인하고,
 성공한 threshold 초과 event는 `oci-monitoring` Discord channel로 확인한다.

@@ -241,7 +241,7 @@ class WaffleAlertApplicationTests { @Test fun contextLoads() {} }
 waffle-alert는 일반 서비스가 아니라 **클러스터 인프라 컴포넌트** (truffle / k8s-monitoring과 같은 성격).
 
 - 모니터링 대상이 **클러스터 하나**라, dev/prod 인스턴스를 나눌 이유가 약함 → **prod Pod 1개로 시작** (truffle도 prod만 실재).
-- **dev Pod 불필요**: Monitoring local E2E는 persistence auto-configuration을 제외하고 OCI API와 Discord를 직접 호출한다. 공용 dev DB는 MVP에 두지 않는다.
+- **dev Pod 불필요**: Monitoring local E2E는 Docker MySQL과 환경변수를 사용해 OCI API와 Discord를 확인한다. 공용 dev DB는 MVP에 두지 않는다.
 - 환경 분리가 의미 있는 건 **알림 채널**뿐 (개발 #alert-test / 운영 #infra-critical) — truffle 방식.
 
 ### 브랜치 전략

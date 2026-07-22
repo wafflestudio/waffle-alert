@@ -20,8 +20,6 @@ data class OciMysqlMonitoringProperties(
 data class OciMysqlDbSystemProperties(
     val id: String,
     val compartmentId: String,
-    val service: String? = null,
-    val team: String? = null,
     val enabled: Boolean = true,
     val thresholds: OciMysqlThresholdProperties,
 )

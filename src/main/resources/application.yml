@@ -38,12 +38,3 @@ management:
     health:
       probes:
         enabled: true
-
-oci:
-  vault:
-    secret-ids: ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqadjrtaoxv4b2kmdicuk4ivfhhqqr4j2g2ecmqe4boknxq
-    region: ap-chuncheon-1
-
-alert:
-  oci-monitoring:
-    enabled: true

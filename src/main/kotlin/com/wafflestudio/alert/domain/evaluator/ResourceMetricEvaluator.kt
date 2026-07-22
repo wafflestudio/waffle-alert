@@ -13,7 +13,6 @@ class ResourceMetricEvaluator {
     fun evaluateUtilization(
         observation: MetricObservation,
         threshold: UtilizationThreshold,
-        context: AlertContext = AlertContext(),
     ): AlertEvent? {
         val rule = UTILIZATION_RULES.firstOrNull { it.matches(observation) } ?: return null
         return evaluateMetric(
@@ -21,46 +20,37 @@ class ResourceMetricEvaluator {
             warningThreshold = threshold.warning,
             criticalThreshold = threshold.critical,
             rule = rule,
-            context = context,
         )
     }
 
     fun evaluateCurrentConnections(
         observation: MetricObservation,
         threshold: CountThreshold,
-        context: AlertContext = AlertContext(),
     ): AlertEvent? =
         evaluateMetric(
             observation = observation,
             warningThreshold = threshold.warning,
             criticalThreshold = threshold.critical,
             rule = CURRENT_CONNECTION_RULE,
-            context = context,
         )
 
     fun evaluateActiveConnections(
         observation: MetricObservation,
         threshold: CountThreshold,
-        context: AlertContext = AlertContext(),
     ): AlertEvent? =
         evaluateMetric(
             observation = observation,
             warningThreshold = threshold.warning,
             criticalThreshold = threshold.critical,
             rule = ACTIVE_CONNECTION_RULE,
-            context = context,
         )
 
-    fun evaluateBackupFailure(
-        observation: MetricObservation,
-        context: AlertContext = AlertContext(),
-    ): AlertEvent? =
+    fun evaluateBackupFailure(observation: MetricObservation): AlertEvent? =
         evaluateMetric(
             observation = observation,
             warningThreshold = BACKUP_FAILURE_VALUE,
             criticalThreshold = BACKUP_FAILURE_VALUE,
             rule = BACKUP_FAILURE_RULE,
-            context = context,
         )
 
     private fun evaluateMetric(
@@ -68,7 +58,6 @@ class ResourceMetricEvaluator {
         warningThreshold: Double,
         criticalThreshold: Double,
         rule: MetricRule,
-        context: AlertContext,
     ): AlertEvent? {
         if (!rule.matches(observation)) return null
         val (severity, matchedThreshold) =
@@ -91,8 +80,8 @@ class ResourceMetricEvaluator {
                 "${observation.resourceName} ${rule.metricLabel} is " +
                     "${formatValue(observation.value, observation.unit)} " +
                     "(threshold: ${formatValue(matchedThreshold, observation.unit)}).",
-            service = context.service,
-            team = context.team,
+            service = rule.service,
+            team = rule.team,
             resourceType = observation.resourceType,
             resourceId = observation.resourceId,
             resourceName = observation.resourceName,
@@ -130,6 +119,8 @@ class ResourceMetricEvaluator {
         val ruleName: String,
         val title: String,
         val metricLabel: String,
+        val service: String,
+        val team: String,
     ) {
         fun matches(observation: MetricObservation): Boolean =
             observation.provider == provider &&
@@ -141,36 +132,48 @@ class ResourceMetricEvaluator {
     companion object {
         private const val COMPARISON_OPERATOR = "GREATER_THAN_OR_EQUAL"
         private const val MYSQL_RESOURCE_TYPE = "mysql"
+        private const val OCI_MYSQL_SERVICE = "OCI-DB"
+        private const val OCI_MYSQL_TEAM = "infra"
         private const val BACKUP_FAILURE_VALUE = 1.0
+
+        private fun ociMysqlRule(
+            metricKind: MetricKind,
+            unit: MetricUnit,
+            ruleName: String,
+            title: String,
+            metricLabel: String,
+        ) = MetricRule(
+            provider = MetricProvider.OCI,
+            resourceType = MYSQL_RESOURCE_TYPE,
+            metricKind = metricKind,
+            unit = unit,
+            source = AlertSource.OCI_MONITORING,
+            ruleName = ruleName,
+            title = title,
+            metricLabel = metricLabel,
+            service = OCI_MYSQL_SERVICE,
+            team = OCI_MYSQL_TEAM,
+        )
 
         private val UTILIZATION_RULES =
             listOf(
-                MetricRule(
-                    provider = MetricProvider.OCI,
-                    resourceType = MYSQL_RESOURCE_TYPE,
+                ociMysqlRule(
                     metricKind = MetricKind.CPU_UTILIZATION,
                     unit = MetricUnit.PERCENT,
-                    source = AlertSource.OCI_MONITORING,
                     ruleName = "cpu-utilization-high",
                     title = "MySQL CPU utilization high",
                     metricLabel = "CPU utilization",
                 ),
-                MetricRule(
-                    provider = MetricProvider.OCI,
-                    resourceType = MYSQL_RESOURCE_TYPE,
+                ociMysqlRule(
                     metricKind = MetricKind.MEMORY_UTILIZATION,
                     unit = MetricUnit.PERCENT,
-                    source = AlertSource.OCI_MONITORING,
                     ruleName = "memory-utilization-high",
                     title = "MySQL memory utilization high",
                     metricLabel = "Memory utilization",
                 ),
-                MetricRule(
-                    provider = MetricProvider.OCI,
-                    resourceType = MYSQL_RESOURCE_TYPE,
+                ociMysqlRule(
                     metricKind = MetricKind.VOLUME_UTILIZATION,
                     unit = MetricUnit.PERCENT,
-                    source = AlertSource.OCI_MONITORING,
                     ruleName = "db-volume-utilization-high",
                     title = "MySQL DB volume utilization high",
                     metricLabel = "DB volume utilization",
@@ -178,36 +181,27 @@ class ResourceMetricEvaluator {
             )
 
         private val CURRENT_CONNECTION_RULE =
-            MetricRule(
-                provider = MetricProvider.OCI,
-                resourceType = MYSQL_RESOURCE_TYPE,
+            ociMysqlRule(
                 metricKind = MetricKind.CURRENT_CONNECTIONS,
                 unit = MetricUnit.COUNT,
-                source = AlertSource.OCI_MONITORING,
                 ruleName = "current-connections-high",
                 title = "MySQL current connections high",
                 metricLabel = "Current connections",
             )
 
         private val ACTIVE_CONNECTION_RULE =
-            MetricRule(
-                provider = MetricProvider.OCI,
-                resourceType = MYSQL_RESOURCE_TYPE,
+            ociMysqlRule(
                 metricKind = MetricKind.ACTIVE_CONNECTIONS,
                 unit = MetricUnit.COUNT,
-                source = AlertSource.OCI_MONITORING,
                 ruleName = "active-connections-high",
                 title = "MySQL active connections high",
                 metricLabel = "Active connections",
             )
 
         private val BACKUP_FAILURE_RULE =
-            MetricRule(
-                provider = MetricProvider.OCI,
-                resourceType = MYSQL_RESOURCE_TYPE,
+            ociMysqlRule(
                 metricKind = MetricKind.BACKUP_FAILURES,
                 unit = MetricUnit.STATUS,
-                source = AlertSource.OCI_MONITORING,
                 ruleName = "backup-failure",
                 title = "MySQL backup failure",
                 metricLabel = "Backup failure",
@@ -235,8 +229,3 @@ data class CountThreshold(
         require(warning < critical) { "Count warning threshold must be lower than critical threshold" }
     }
 }
-
-data class AlertContext(
-    val service: String? = null,
-    val team: String? = null,
-)

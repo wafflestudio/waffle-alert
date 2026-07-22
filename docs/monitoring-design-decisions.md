@@ -81,9 +81,9 @@ Observation은 "CPU가 85%였다"만 표현한다. AlertEvent는 "warning thresh
 | `ResourceMetricEvaluator` | rule 선택, threshold 판정, AlertEvent 생성 | 공통 |
 | `AlertEvent` / ingestion / notification | 사건 처리와 출력 | 독립 |
 
-OCI에서는 Scheduler가 query와 운영 threshold/context를 조합하고, Adapter는 OCI SDK 응답을
+OCI에서는 Scheduler가 query와 운영 threshold를 조합하고, Adapter는 OCI SDK 응답을
 `MetricObservation`으로만 변환한다. Evaluator는 Adapter나 OCI MQL을 직접 호출하지 않고 Observation과
-threshold를 받아 `AlertEvent`를 만든다.
+threshold를 받아 rule에 정의된 service/team과 함께 `AlertEvent`를 만든다.
 
 ### OCI metric 전달 계약
 
@@ -92,7 +92,7 @@ threshold를 받아 `AlertEvent`를 만든다.
 | 조회 입력 | `OciMysqlMetricQuery` | compartment OCID, DB System OCID, window, resolution | Adapter의 Monitoring API 요청 |
 | API 응답 | OCI `MetricData` | metric name, dimensions, aggregated datapoints | Adapter의 정규화 대상 |
 | 공통 관측값 | `MetricObservation` | `provider=OCI`, namespace, 원본 metric name, dimensions/region labels | evaluator의 rule/threshold 입력 |
-| 평가 context | `AlertContext` + profile threshold | service/team, warning/critical | `AlertEvent`의 routing·severity |
+| 평가 rule | `MetricRule` + profile threshold | service/team, warning/critical | `AlertEvent`의 routing·severity |
 | 평가 결과 | `AlertEvent` | `source=OCI_MONITORING`, fingerprint, metric/value/threshold | ingestion·Discord |
 
 `MetricObservation`은 다음 값을 보존한다.
@@ -238,15 +238,17 @@ query -> List<MetricObservation>
 
 현재 설정은 다음 원칙을 따른다.
 
-### Vault에 두는 값
+### prod Vault에 두는 값
 
 - `spring.datasource.url`, `username`, `password`
 - `discord.bot-token`
 - DB System OCID와 compartment OCID
-- 대상의 `service`, `team`, `enabled`
+- 대상의 `enabled`
 
-DB와 Discord 값은 secret이므로 Vault에 둔다. OCID와 service/team은 반드시 secret은 아니지만 운영
-대상별 값이고 배포 환경에서 중앙 관리할 필요가 있어 같은 Vault 설정으로 관리한다.
+운영 DB와 Discord 값은 secret이므로 Vault에 둔다. 개별 enabled는 DB System OCID와 수명주기를 같이하는
+대상 설정이므로 같은 Vault 설정으로 관리한다. service/team은 source별 rule이 결정한다.
+
+local에서는 Docker MySQL을 사용하고 Discord token과 대상 정보는 환경변수로 직접 주입한다.
 
 ### YAML에 두는 값
 
@@ -254,6 +256,7 @@ DB와 Discord 값은 secret이므로 Vault에 둔다. OCID와 service/team은 �
 - Monitoring 활성화 여부
 - local/prod OCI 인증 방식
 - local/prod threshold
+- local datasource와 환경변수 placeholder
 - Discord channel ID처럼 공개 가능한 고정 설정
 
 Vault secret OCID는 Vault 내용을 읽기 전에 필요한 bootstrap 값이다. 실제 secret 내용이 아니므로
@@ -278,7 +281,8 @@ Current/active connections threshold는 사용률이 아니라 연결 수의 절
 기준이므로 DB System의 연결 용량과 workload에 맞춰 조정한다.
 Backup failure는 별도 threshold 없이 OCI status 1을 CRITICAL event로 평가한다.
 낮은 local threshold는 실제 운영 기준이 아니라 OCI 조회부터 Discord 출력까지 연결됐는지 확인하기 위한
-값이다. 공통 Vault bootstrap, datasource, Discord token 주입과 Monitoring 활성화는 profile 간 동일하다.
+값이다. Vault bootstrap은 prod에만 두고, Monitoring 활성화 여부는 local과 prod에서 독립적으로 바꿀 수
+있도록 각 profile에 명시한다.
 Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 3분을 기다린다.
 prod query window는 4분으로 두어 실행 사이에 1분을 겹친다.
 처리 시간이 길어져도 실행이 겹치지 않는다.
@@ -290,9 +294,8 @@ prod query window는 4분으로 두어 실행 사이에 1분을 겹친다.
 `NotificationPort`를 바로 호출한다. 따라서 현재 AlertEvent가 FIRING되면 DB 저장 없이 Discord로 간다.
 
 다만 JPA와 Flyway dependency가 활성화돼 있어 애플리케이션 시작 과정에서는 DB 연결을 요구한다.
-운영 Pod는 VCN 내부에서 Vault datasource의 private endpoint에 접근할 수 있지만 로컬 머신에는 route가
-없어 connect timeout이 발생한다. Monitoring local E2E에서는 DB/JPA/Flyway auto-configuration을 실행
-옵션으로 제외한다. Incident 기능을 구현할 때 이 임시 분리를 다시 검토한다.
+운영 Pod는 VCN 내부에서 Vault datasource의 private endpoint에 접근한다. Monitoring local E2E는
+운영 DB에 연결하지 않고 Docker MySQL을 사용한다.
 
 ## 6. DB Systems를 List가 아니라 Map으로 둔 이유
 
@@ -308,14 +311,14 @@ db-systems:
         critical: 90
 ```
 
-List는 한 property source가 각 원소를 완전하게 제공할 때는 단순하다. 하지만 Vault와 profile YAML이
-한 DB System의 서로 다른 필드를 제공해야 하는 현재 구조에는 불리하다.
+List는 한 property source가 각 원소를 완전하게 제공할 때는 단순하다. 하지만 prod Vault와 profile YAML,
+local 환경변수가 한 DB System의 서로 다른 필드를 제공하는 현재 구조에는 불리하다.
 
 - List 원소는 index로 식별되므로 `db-systems[0]`의 의미가 설정마다 암묵적이다.
 - profile이 일부 필드만 선언할 때 다른 property source의 같은 index와 안정적으로 합쳐진다고 기대하기
   어렵다.
 - 순서가 바뀌면 다른 DB에 threshold가 적용될 위험이 있다.
-- local YAML에도 OCID와 compartment를 중복 선언하게 될 수 있다.
+- profile마다 OCID와 compartment의 위치를 index로 맞춰야 한다.
 
 현재는 안정적인 별칭을 key로 사용하는 Map이다.
 
@@ -333,8 +336,6 @@ Vault는 같은 key 아래의 대상 정보를 제공한다.
 ```text
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.id
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.compartment-id
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.service
-alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.team
 alert.oci-monitoring.mysql.db-systems.wafflestudio-mysql.enabled
 ```
 
@@ -359,8 +360,9 @@ Spring Binder는 여러 property source에서 같은 Map key 아래의 서로 �
 현재 DB Systems는 Map 조건에 해당한다. key에는 긴 OCID 대신 사람이 읽을 수 있고 환경 간에도 의미가
 안정적인 `wafflestudio-mysql` 같은 별칭을 사용한다. 실제 리소스 identity는 value의 `id`로 유지한다.
 
-같은 leaf property를 Vault와 YAML 양쪽에 중복 정의해서 우선순위에 의존하지 않는다. 현재는 대상 정보는
-Vault, threshold는 YAML로 leaf 책임을 분리한다. key를 변경하면 기존 항목 override가 아니라 새 항목이
+같은 leaf property를 여러 property source에 중복 정의해서 우선순위에 의존하지 않는다. 대상 정보는
+prod Vault 또는 local 환경변수, threshold는 YAML, service/team은 rule로 책임을 분리한다. key를 변경하면
+기존 항목 override가 아니라 새 항목이
 되므로 rename 시 Vault와 모든 profile YAML을 함께 변경해야 한다.
 
 ## 7. 현재 한계와 후속 작업

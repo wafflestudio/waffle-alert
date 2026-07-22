@@ -23,7 +23,6 @@ class ResourceMetricEvaluatorTest {
             evaluator.evaluateUtilization(
                 observation = observation(value = 85.0),
                 threshold = threshold,
-                context = AlertContext(service = "platform", team = "infra"),
             )
 
         requireNotNull(event)
@@ -38,7 +37,7 @@ class ResourceMetricEvaluatorTest {
         assertEquals("85.0", event.value)
         assertEquals("80.0", event.threshold)
         assertEquals("GREATER_THAN_OR_EQUAL", event.comparisonOperator)
-        assertEquals("platform", event.service)
+        assertEquals("OCI-DB", event.service)
         assertEquals("infra", event.team)
     }
 
