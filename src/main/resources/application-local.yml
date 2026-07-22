@@ -1,0 +1,46 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/waffle_alert?serverTimezone=UTC&characterEncoding=UTF-8
+    username: alert
+    password: alertpw
+
+discord:
+  bot-token: ${DISCORD_BOT_TOKEN:}
+
+oci:
+  auth:
+    type: config
+  config:
+    profile: ${OCI_CONFIG_PROFILE:DEFAULT}
+
+alert:
+  oci-monitoring:
+    # Intentionally profile-specific: local polling may be disabled independently after stabilization.
+    enabled: true
+    polling-interval-ms: 60000
+    mysql:
+      db-systems:
+        wafflestudio-mysql:
+          id: ${OCI_MONITORING_DB_SYSTEM_ID}
+          compartment-id: ${OCI_MONITORING_COMPARTMENT_ID}
+          enabled: ${OCI_MONITORING_DB_SYSTEM_ENABLED}
+          thresholds:
+            # Deliberately low only for local Discord delivery checks.
+            cpu-utilization:
+              warning: 1.0
+              critical: 2.0
+            memory-utilization:
+              warning: 1.0
+              critical: 2.0
+            current-connections:
+              warning: 1.0
+              critical: 2.0
+            active-connections:
+              warning: 1.0
+              critical: 2.0
+            db-volume-utilization:
+              warning: 1.0
+              critical: 2.0

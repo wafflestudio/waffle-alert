@@ -1,0 +1,37 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+oci:
+  auth:
+    type: instance_principal
+  vault:
+    secret-ids: ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqadjrtaoxv4b2kmdicuk4ivfhhqqr4j2g2ecmqe4boknxq
+    region: ap-chuncheon-1
+
+alert:
+  oci-monitoring:
+    # Intentionally profile-specific: local polling may be disabled independently after stabilization.
+    enabled: true
+    polling-interval-ms: 180000
+    query-window: 4m
+    mysql:
+      db-systems:
+        wafflestudio-mysql:
+          thresholds:
+            cpu-utilization:
+              warning: 80.0
+              critical: 90.0
+            memory-utilization:
+              warning: 80.0
+              critical: 90.0
+            current-connections:
+              warning: 80.0
+              critical: 100.0
+            active-connections:
+              warning: 80.0
+              critical: 100.0
+            db-volume-utilization:
+              warning: 80.0
+              critical: 90.0

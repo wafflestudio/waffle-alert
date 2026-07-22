@@ -7,7 +7,7 @@
 
 ```
 [팀원 A] Alertmanager webhook   ──┐
-[팀원 B] OCI Monitoring poller  ──┼──→  AlertEvent  ──→  AlertIngestionService.ingest(event)  ──→  NotificationPort  ──→  Discord
+[팀원 B] OCI Monitoring poller → ResourceMetricObservation → evaluator ─┼→ AlertEvent → AlertIngestionService.ingest(event) → NotificationPort → Discord
 [팀원 C] OCI Cost poller        ──┘                            (공통, 준병 담당)
 ```
 
@@ -77,7 +77,7 @@ interface NotificationPort {
 | 담당 | 위치 | 만들 것 |
 | --- | --- | --- |
 | Alertmanager | `inbound/webhook/` (+ `inbound/webhook/dto/`) | webhook payload 수신 컨트롤러, Alertmanager JSON → `AlertEvent` 매퍼 |
-| OCI Monitoring | `source/oci/`, `source/scheduler/` | 주기 polling 스케줄러, OCI Monitoring API 클라이언트, 응답 → `AlertEvent` 매퍼 |
+| OCI Monitoring | `source/oci/`, `source/scheduler/` | 주기 polling, API 응답 → `ResourceMetricObservation` 변환, rule 평가 → `AlertEvent` |
 | OCI Cost | `source/oci/` | 일 단위 polling, OCI Cost API 클라이언트, 응답 → `AlertEvent` 매퍼 |
 
 공통으로: 변환 후 `AlertIngestionService.ingest(event)` 호출 지점까지만 구현하면 각자 담당 끝.

@@ -3,7 +3,7 @@ package com.wafflestudio.alert.domain.model
 import java.time.Instant
 
 /**
- * source와 무관한 공통 payload. Alertmanager webhook 또는 OCI poller가 만들어내는 공통 입력 모델.
+ * 모든 alert source가 최종적으로 만드는 서비스 공통 사건 모델.
  * 각 source는 이 필드 중 자신이 채울 수 있는 값만 채우고 AlertIngestionService.ingest(event)를 호출한다.
  */
 data class AlertEvent(

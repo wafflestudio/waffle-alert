@@ -2,6 +2,12 @@
 
 > waffle-alert가 어떻게 동작하는지. 코드 짜기 전 개념 정리.
 
+Monitoring provider 확장 경계와 Vault 설정 결정은
+[Monitoring 확장 설계 결정](./monitoring-design-decisions.md)을 참고한다.
+
+> 현재 구현 상태: Incident/EventLog entity와 schema만 준비돼 있고 repository와 IncidentService는 TODO다.
+> `AlertIngestionService`는 DB를 거치지 않고 모든 AlertEvent를 Discord로 바로 전달한다.
+
 ## 1. 핵심 개념: AlertEvent / Incident / EventLog
 
 병원 응급실 비유:
@@ -122,13 +128,13 @@ OCI Monitoring/Cost API:
 | fingerprint | payload/라벨 | service+metric+resource | metric + **날짜**(보통) |
 | evaluator | 불필요 | 필요 | 필요 |
 
-### 시나리오 A — OCI Monitoring (MySQL CPU, 1분 주기, 임계치 80%)
+### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 3분 주기, 임계치 80%)
 
 ```
 10:00  CPU 60%  → 정상. incident 없음.
-10:01  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
-10:02  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
-10:03  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
+10:03  CPU 85%  → FIRING 판단! fingerprint "snutt-mysql/cpu-high" 없음 → Incident #1 생성, 슬랙 ✅
+10:06  CPU 88%  → 여전히 FIRING. 같은 fingerprint → Incident #1에 묶음, REPEATED, 슬랙 X
+10:09  CPU 70%  → 정상 복귀! 열린 Incident #1 있음 → RESOLVED 처리, "해결" 슬랙 ✅
 ```
 
 → **차이: OCI는 RESOLVED를 안 보내준다.** evaluator가 "이번 측정이 정상인데 열린 incident가 있으면 → 닫는다"를 직접 판단해야 함.
@@ -153,12 +159,13 @@ Day3  140 USD → 또 초과. fingerprint 설계에 따라 갈림 ↓
 ### 핵심: evaluator만 다르고 그 뒤는 공통
 
 ```
-Prometheus    → [webhook 파싱] ───────────────────────┐
-OCI Monitoring → [긁기 → evaluator: 임계치+상태판단] ──┼→ AlertEvent → AlertIngestionService (공통!)
-OCI Cost      → [긁기 → evaluator: 임계치+날짜fp] ─────┘
+Prometheus     → [webhook 파싱] ───────────────────────────────────┐
+Cloud resource → [polling → ResourceMetricObservation → evaluator] ─┼→ AlertEvent → AlertIngestionService (공통!)
+OCI Cost       → [polling → 비용 전용 evaluator: 임계치+날짜fp] ────┘
 ```
 
-→ Incident/EventLog 구조와 저장/라우팅/알림은 **셋 다 100% 공통.** OCI만 AlertEvent를 만들기까지(evaluator) 일을 더 할 뿐. 그래서 evaluator가 OCI 쪽에만 있다.
+→ Incident/EventLog 구조와 저장/라우팅/알림은 **셋 다 100% 공통.** Alertmanager는 이미 평가된 사건을
+보내고, cloud resource polling 경로만 `ResourceMetricObservation`과 evaluator를 거친다.
 
 ### OCI 때문에 추가로 구현할 것
 
@@ -171,14 +178,15 @@ OCI Cost      → [긁기 → evaluator: 임계치+날짜fp] ─────┘
 
 ```
 inbound/webhook       → AlertEvent 입구 (Alertmanager가 POST)
-source/oci            → AlertEvent 입구 (OCI 긁어서) + scheduler + evaluator
+source/oci            → OCI Monitoring/Cost polling + scheduler
        ↓
 domain/model
   AlertEvent          → 순간 신호 (§1)
+  ResourceMetricObservation → cloud resource polling의 판단 전 관측값
   AlertIncident       → 묶인 문제 (§1) = @Entity = alert_incidents
   AlertEventLog       → 타임라인 (§1) = @Entity = alert_event_logs
   Enums               → AlertSource / AlertStatus / Severity
-domain/evaluator      → OCI 임계치+상태 판단 (Prometheus는 불필요)
+domain/evaluator      → cloud resource metric/비용 평가 (Alertmanager는 불필요)
 domain/service
   IncidentService     → fingerprint 묶기 / 상태전이 (★ 심장)
   AlertIngestionService → 받아서→묶고→기록→알림 조율 (두 경로 합류점)
@@ -235,7 +243,7 @@ class WaffleAlertApplicationTests { @Test fun contextLoads() {} }
 waffle-alert는 일반 서비스가 아니라 **클러스터 인프라 컴포넌트** (truffle / k8s-monitoring과 같은 성격).
 
 - 모니터링 대상이 **클러스터 하나**라, dev/prod 인스턴스를 나눌 이유가 약함 → **prod Pod 1개로 시작** (truffle도 prod만 실재).
-- **dev Pod 불필요**: dev DB에 붙는 건 dev Pod가 아니라 개발자 로컬 앱. 그리고 waffle-alert 특성상 공용 dev DB도 MVP엔 불필요 (local Docker DB + OCI 직접 호출로 충분).
+- **dev Pod 불필요**: Monitoring local E2E는 Docker MySQL과 환경변수를 사용해 OCI API와 Discord를 확인한다. 공용 dev DB는 MVP에 두지 않는다.
 - 환경 분리가 의미 있는 건 **알림 채널**뿐 (개발 #alert-test / 운영 #infra-critical) — truffle 방식.
 
 ### 브랜치 전략
