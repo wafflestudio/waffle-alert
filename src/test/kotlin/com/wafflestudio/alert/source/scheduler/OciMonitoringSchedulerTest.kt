@@ -1,11 +1,11 @@
 package com.wafflestudio.alert.source.scheduler
 
 import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
+import com.wafflestudio.alert.domain.model.CloudProvider
 import com.wafflestudio.alert.domain.model.MetricKind
-import com.wafflestudio.alert.domain.model.MetricObservation
-import com.wafflestudio.alert.domain.model.MetricProvider
 import com.wafflestudio.alert.domain.model.MetricStatistic
 import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import com.wafflestudio.alert.domain.service.AlertIngestionService
 import com.wafflestudio.alert.source.oci.OciMonitoringAdapter
 import com.wafflestudio.alert.source.oci.OciMonitoringProperties
@@ -261,9 +261,9 @@ class OciMonitoringSchedulerTest {
         metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
         providerMetricName: String = "CPUUtilization",
         unit: MetricUnit = MetricUnit.PERCENT,
-    ): MetricObservation =
-        MetricObservation(
-            provider = MetricProvider.OCI,
+    ): ResourceMetricObservation =
+        ResourceMetricObservation(
+            cloudProvider = CloudProvider.OCI,
             resourceType = "mysql",
             resourceId = "ocid1.mysqldbsystem.oc1..example",
             resourceName = "wafflestudio-mysql",

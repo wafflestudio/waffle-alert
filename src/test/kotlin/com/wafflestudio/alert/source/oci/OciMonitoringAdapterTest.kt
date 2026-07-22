@@ -5,6 +5,7 @@ import com.oracle.bmc.monitoring.model.AggregatedDatapoint
 import com.oracle.bmc.monitoring.model.MetricData
 import com.oracle.bmc.monitoring.requests.SummarizeMetricsDataRequest
 import com.oracle.bmc.monitoring.responses.SummarizeMetricsDataResponse
+import com.wafflestudio.alert.domain.model.CloudProvider
 import com.wafflestudio.alert.domain.model.MetricKind
 import io.mockk.every
 import io.mockk.mockk
@@ -58,6 +59,7 @@ class OciMonitoringAdapterTest {
             )
 
         assertEquals(1, observations.size)
+        assertEquals(CloudProvider.OCI, observations.single().cloudProvider)
         assertEquals(MetricKind.CPU_UTILIZATION, observations.single().metricKind)
         assertEquals(92.4, observations.single().value)
         assertEquals(Instant.parse("2026-07-12T01:04:00Z"), observations.single().observedAt)

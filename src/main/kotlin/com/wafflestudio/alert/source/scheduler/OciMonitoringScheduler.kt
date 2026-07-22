@@ -4,7 +4,7 @@ import com.wafflestudio.alert.domain.evaluator.CountThreshold
 import com.wafflestudio.alert.domain.evaluator.ResourceMetricEvaluator
 import com.wafflestudio.alert.domain.evaluator.UtilizationThreshold
 import com.wafflestudio.alert.domain.model.AlertEvent
-import com.wafflestudio.alert.domain.model.MetricObservation
+import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import com.wafflestudio.alert.domain.service.AlertIngestionService
 import com.wafflestudio.alert.source.oci.OciMonitoringAdapter
 import com.wafflestudio.alert.source.oci.OciMonitoringProperties
@@ -96,7 +96,7 @@ class OciMonitoringScheduler(
         dbSystemId: String,
         metricName: String,
         threshold: OciThresholdProperties,
-        fetch: () -> List<MetricObservation>,
+        fetch: () -> List<ResourceMetricObservation>,
     ) {
         pollMetric(
             dbSystemId = dbSystemId,
@@ -114,8 +114,8 @@ class OciMonitoringScheduler(
     private fun pollMetric(
         dbSystemId: String,
         metricName: String,
-        fetch: () -> List<MetricObservation>,
-        evaluate: (MetricObservation) -> AlertEvent?,
+        fetch: () -> List<ResourceMetricObservation>,
+        evaluate: (ResourceMetricObservation) -> AlertEvent?,
     ) {
         try {
             fetch().forEach { observation ->

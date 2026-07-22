@@ -2,11 +2,11 @@ package com.wafflestudio.alert.domain.evaluator
 
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
+import com.wafflestudio.alert.domain.model.CloudProvider
 import com.wafflestudio.alert.domain.model.MetricKind
-import com.wafflestudio.alert.domain.model.MetricObservation
-import com.wafflestudio.alert.domain.model.MetricProvider
 import com.wafflestudio.alert.domain.model.MetricStatistic
 import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import com.wafflestudio.alert.domain.model.Severity
 import java.time.Instant
 import kotlin.test.Test
@@ -195,8 +195,8 @@ class ResourceMetricEvaluatorTest {
     }
 
     @Test
-    fun `returns no event when provider has no matching rule`() {
-        val awsObservation = observation(value = 95.0).copy(provider = MetricProvider.AWS_CLOUDWATCH)
+    fun `returns no event when cloud provider has no matching rule`() {
+        val awsObservation = observation(value = 95.0).copy(cloudProvider = CloudProvider.AWS)
 
         assertNull(evaluator.evaluateUtilization(awsObservation, threshold))
     }
@@ -223,9 +223,9 @@ class ResourceMetricEvaluatorTest {
         metricKind: MetricKind = MetricKind.CPU_UTILIZATION,
         providerMetricName: String = "CPUUtilization",
         unit: MetricUnit = MetricUnit.PERCENT,
-    ): MetricObservation =
-        MetricObservation(
-            provider = MetricProvider.OCI,
+    ): ResourceMetricObservation =
+        ResourceMetricObservation(
+            cloudProvider = CloudProvider.OCI,
             resourceType = "mysql",
             resourceId = "ocid1.mysqldbsystem.oc1..example",
             resourceName = "wafflestudio-mysql",

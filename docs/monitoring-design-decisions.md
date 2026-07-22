@@ -3,12 +3,13 @@
 > 최종 업데이트: 2026-07-21
 
 이 문서는 OCI Monitoring을 구현하면서 결정한 hexagonal 경계와 설정 관리 방식을 정리한다.
-현재 구현을 설명하는 동시에 AWS CloudWatch, Prometheus 등 다른 provider를 추가할 때의 기준으로 사용한다.
+현재 구현을 설명하는 동시에 AWS CloudWatch 등 다른 cloud resource monitoring provider를 추가할 때의
+기준으로 사용한다.
 
 ## 1. 목표
 
 - OCI SDK 응답이 알림 도메인 전체로 퍼지지 않게 한다.
-- provider가 달라도 같은 형태의 metric 관측값과 알림 사건을 사용한다.
+- cloud provider가 달라도 같은 형태의 resource metric 관측값을 사용한다.
 - 인증, API query, dimension 해석처럼 provider마다 다른 부분은 source 계층에 둔다.
 - threshold 판정과 `AlertEvent` 생성은 공통 evaluator에서 처리한다.
 - 운영 설정은 Vault와 profile YAML의 책임을 구분하고 코드 리뷰로 비교할 수 있게 한다.
@@ -19,18 +20,20 @@ DB를 사용하지 않는다.
 
 ## 2. 용어 구분
 
-### Provider
+### Cloud provider
 
-`MetricObservation.provider`는 원본 metric을 제공한 시스템이다.
+`ResourceMetricObservation.cloudProvider`는 polling한 resource metric의 cloud platform이다.
 
 ```text
 OCI
-AWS_CLOUDWATCH
-PROMETHEUS
+AWS
 ```
 
-provider는 evaluator가 어떤 rule을 적용할지 판단하는 입력이다. OCI와 AWS가 모두 CPU 사용률을
+cloud provider는 evaluator가 어떤 rule을 적용할지 판단하는 입력이다. OCI와 AWS가 모두 CPU 사용률을
 제공하더라도 resource type, 단위 또는 운영 의미가 다르면 서로 다른 rule을 선택할 수 있다.
+
+Prometheus/Alertmanager는 이 모델의 provider가 아니다. Alertmanager가 이미 rule과 threshold를 평가한
+사건을 webhook으로 보내므로 `ResourceMetricObservation`을 거치지 않고 바로 `AlertEvent`로 변환한다.
 
 ### Alert source
 
@@ -42,13 +45,14 @@ OCI_MONITORING
 OCI_COST
 ```
 
-즉 `provider`는 관측 데이터의 출처이고, `source`는 알림 사건의 분류다. evaluator는 observation의
-provider와 rule을 통해 출력 `AlertEvent.source`를 결정한다. 둘을 하나의 필드로 합치지 않는다.
+즉 `cloudProvider`는 cloud resource 관측 데이터의 플랫폼이고, `source`는 완성된 알림 사건의 분류다.
+evaluator는 observation의 cloud provider와 rule을 통해 출력 `AlertEvent.source`를 결정한다. 둘을 하나의
+필드로 합치지 않는다.
 
 ### Observation과 AlertEvent
 
-- `MetricObservation`: 판단 전의 provider 중립적인 관측값
-- `AlertEvent`: rule 평가가 끝난 뒤 알림, 저장, Incident 처리에 사용하는 공통 사건
+- `ResourceMetricObservation`: cloud resource polling 경로에서만 사용하는 판단 전 관측값
+- `AlertEvent`: 모든 source가 합류해 알림, 저장, Incident 처리에 사용하는 서비스 공통 사건
 
 Observation은 "CPU가 85%였다"만 표현한다. AlertEvent는 "warning threshold를 넘어서 FIRING
 사건이 발생했다"를 표현한다.
@@ -61,9 +65,9 @@ Observation은 "CPU가 85%였다"만 표현한다. AlertEvent는 "warning thresh
        -> OciMysqlMetricQuery(compartmentId, dbSystemId, window, resolution)
        -> OciMonitoringAdapter
             -> MonitoringClient.summarizeMetricsData(MQL)
-            -> List<MetricObservation>
+            -> List<ResourceMetricObservation>
        -> ResourceMetricEvaluator
-            -> provider + resourceType + metricKind + unit으로 rule 선택
+            -> cloudProvider + resourceType + metricKind + unit으로 rule 선택
             -> threshold/status 판정
        -> AlertEvent
        -> AlertIngestionService
@@ -73,16 +77,16 @@ Observation은 "CPU가 85%였다"만 표현한다. AlertEvent는 "warning thresh
 
 각 계층의 책임은 다음과 같다.
 
-| 구성요소 | 책임 | provider 종속 여부 |
+| 구성요소 | 책임 | cloud provider 종속 여부 |
 | --- | --- | --- |
 | Scheduler | polling 주기, 대상 순회, query 실행 조율 | 종속 허용 |
 | Source adapter | 인증된 API 호출, 응답/dimension 해석, Observation 변환 | 종속 허용 |
-| `MetricObservation` | provider 간 공통 metric 계약 | 독립 |
+| `ResourceMetricObservation` | cloud resource polling provider 간 중간 metric 계약 | 독립 |
 | `ResourceMetricEvaluator` | rule 선택, threshold 판정, AlertEvent 생성 | 공통 |
 | `AlertEvent` / ingestion / notification | 사건 처리와 출력 | 독립 |
 
 OCI에서는 Scheduler가 query와 운영 threshold를 조합하고, Adapter는 OCI SDK 응답을
-`MetricObservation`으로만 변환한다. Evaluator는 Adapter나 OCI MQL을 직접 호출하지 않고 Observation과
+`ResourceMetricObservation`으로만 변환한다. Evaluator는 Adapter나 OCI MQL을 직접 호출하지 않고 Observation과
 threshold를 받아 rule에 정의된 service/team과 함께 `AlertEvent`를 만든다.
 
 ### OCI metric 전달 계약
@@ -91,13 +95,13 @@ threshold를 받아 rule에 정의된 service/team과 함께 `AlertEvent`를 만
 | --- | --- | --- | --- |
 | 조회 입력 | `OciMysqlMetricQuery` | compartment OCID, DB System OCID, window, resolution | Adapter의 Monitoring API 요청 |
 | API 응답 | OCI `MetricData` | metric name, dimensions, aggregated datapoints | Adapter의 정규화 대상 |
-| 공통 관측값 | `MetricObservation` | `provider=OCI`, namespace, 원본 metric name, dimensions/region labels | evaluator의 rule/threshold 입력 |
+| resource 관측값 | `ResourceMetricObservation` | `cloudProvider=OCI`, namespace, 원본 metric name, dimensions/region labels | evaluator의 rule/threshold 입력 |
 | 평가 rule | `MetricRule` + profile threshold | service/team, warning/critical | `AlertEvent`의 routing·severity |
 | 평가 결과 | `AlertEvent` | `source=OCI_MONITORING`, fingerprint, metric/value/threshold | ingestion·Discord |
 
-`MetricObservation`은 다음 값을 보존한다.
+`ResourceMetricObservation`은 다음 값을 보존한다.
 
-- identity: `provider`, `resourceType`, `resourceId`, `resourceName`
+- identity: `cloudProvider`, `resourceType`, `resourceId`, `resourceName`
 - metric 의미: `metricKind`, `metricNamespace`, `providerMetricName`, `statistic`, `unit`
 - 측정값: `value`, `observedAt`
 - 추적 정보: OCI dimensions, `namespace`, 응답의 `compartmentId`, adapter region을 `labels`에 저장
@@ -109,7 +113,7 @@ threshold를 받아 rule에 정의된 service/team과 함께 `AlertEvent`를 만
 ### Scheduler는 source별로 둔다
 
 OCI와 AWS는 인증, query 문법, pagination, namespace, dimension과 호출 제한이 다르다. 이를 하나의
-범용 scheduler로 먼저 추상화하면 provider 차이가 공통 인터페이스의 옵션과 조건문으로 새어 나온다.
+범용 scheduler로 먼저 추상화하면 cloud provider 차이가 공통 인터페이스의 옵션과 조건문으로 새어 나온다.
 
 따라서 다음과 같이 source별 진입점을 유지한다.
 
@@ -132,50 +136,50 @@ Scheduler는 source 전용 inbound adapter로 본다. OCI SDK를 직접 다루�
 인증 객체와 SDK client Bean은 source config가 생성한다. Observation, evaluator, AlertEvent에는 인증
 정보가 들어가지 않는다.
 
-### Adapter가 provider 응답을 Observation으로 정규화한다
+### Adapter가 cloud provider 응답을 ResourceMetricObservation으로 정규화한다
 
 Adapter는 OCI의 metric 이름과 dimension을 공통 의미로 바꾼다.
 
 ```text
 OCI CPUUtilization
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = CPU_UTILIZATION
   -> providerMetricName = CPUUtilization
   -> unit = PERCENT
 
 OCI MemoryUtilization
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = MEMORY_UTILIZATION
   -> providerMetricName = MemoryUtilization
   -> unit = PERCENT
 
 OCI CurrentConnections
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = CURRENT_CONNECTIONS
   -> providerMetricName = CurrentConnections
   -> unit = COUNT
 
 OCI ActiveConnections
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = ACTIVE_CONNECTIONS
   -> providerMetricName = ActiveConnections
   -> unit = COUNT
 
 OCI BackupFailure
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = BACKUP_FAILURES
   -> providerMetricName = BackupFailure
   -> unit = STATUS
 
 OCI DbVolumeUtilization
-  -> provider = OCI
+  -> cloudProvider = OCI
   -> metricKind = VOLUME_UTILIZATION
   -> providerMetricName = DbVolumeUtilization
   -> unit = PERCENT
 ```
 
 `providerMetricName`과 `metricNamespace`는 원본 추적을 위해 보존하고, `metricKind`와 `unit`은
-provider 간 rule 선택에 사용한다. 원본 payload가 필요하면 `rawPayload`에 선택적으로 보존한다.
+cloud provider 간 rule 선택에 사용한다. 원본 payload가 필요하면 `rawPayload`에 선택적으로 보존한다.
 
 Adapter는 metric별로 window 안에서 평가할 datapoint를 선택한다.
 
@@ -195,29 +199,29 @@ MQL에 해당 filter를 넣지 않되, 응답에 다른 resource type이 있으�
 Scheduler는 percent metric을 `pollUtilization` 경로로 공통 평가하고, 연결 수는 `CountThreshold`를
 사용한다. `BackupFailure`는 threshold YAML 없이 status `1`을 CRITICAL로 평가한다.
 
-### Evaluator는 공통으로 두고 rule을 provider별로 분리한다
+### Evaluator는 resource monitoring 내부에서 공유하고 rule을 cloud provider별로 분리한다
 
 `ResourceMetricEvaluator`는 특정 SDK나 source properties를 알지 않는다. 현재 metric rule은 다음
 조합으로 선택한다.
 
 ```text
-provider + resourceType + metricKind + unit
+cloudProvider + resourceType + metricKind + unit
 ```
 
 현재 등록된 rule은 OCI MySQL CPU, memory, current connections, active connections, backup failure, DB volume이다.
 일치하는 rule이 없으면 이벤트를 만들지 않는다.
-따라서 `AWS_CLOUDWATCH` observation이 들어와도 AWS rule을 명시적으로 추가하기 전에는 OCI rule로
+따라서 `CloudProvider.AWS` observation이 들어와도 AWS rule을 명시적으로 추가하기 전에는 OCI rule로
 잘못 평가되지 않는다.
 
 AWS 지원 시에는 다음 순서로 확장한다.
 
-1. AWS adapter가 CloudWatch 응답을 `MetricObservation`으로 변환한다.
+1. AWS adapter가 CloudWatch 응답을 `ResourceMetricObservation(cloudProvider=AWS)`으로 변환한다.
 2. 필요한 경우 `AlertSource.AWS_MONITORING`을 추가한다.
-3. evaluator에 AWS의 provider/resource/metric 조합에 맞는 rule을 추가한다.
+3. evaluator에 AWS의 cloudProvider/resource/metric 조합에 맞는 rule을 추가한다.
 4. AWS profile 또는 resource 설정에서 threshold를 전달한다.
 5. 같은 입력이 OCI rule과 AWS rule 중 하나에만 매칭되는지 테스트한다.
 
-provider 간 metric 의미와 기준이 완전히 같더라도 rule을 명시적으로 공유한다. 이름만 같은 provider
+cloud provider 간 metric 의미와 기준이 완전히 같더라도 rule을 명시적으로 공유한다. 이름만 같은 provider
 metric을 자동으로 같은 rule로 취급하지 않는다.
 
 ### Source port는 두 번째 provider에서 추출한다
@@ -228,7 +232,7 @@ metric을 자동으로 같은 rule로 취급하지 않는다.
 AWS 구현 시 아래 형태가 반복되는지 확인한 뒤 `MonitoringSourcePort`를 추출한다.
 
 ```text
-query -> List<MetricObservation>
+query -> List<ResourceMetricObservation>
 ```
 
 이때 port의 입력은 OCI MQL이나 CloudWatch request가 아니라 domain 수준의 resource/metric query여야
@@ -371,7 +375,7 @@ prod Vault 또는 local 환경변수, threshold는 YAML, service/team은 rule로
 | --- | --- | --- |
 | 상태 수명주기 | OCI는 정상값을 버리고 `FIRING`만 생성하므로 지속 장애는 polling마다 알림이 오고 `RESOLVED`는 오지 않는다. | Incident를 구현해 fingerprint별 `FIRING`/`REPEATED`/`RESOLVED` 상태와 알림 억제를 관리한다. |
 | Metric 누락 구간 | Incident 구현 전 임시 보완으로 prod polling을 3분, query window를 4분으로 두고 1분을 겹친다. CPU/memory/backup failure는 window의 peak, current/active connections와 DB volume은 최신값을 평가한다. local은 기존 1분 polling/5분 window를 유지한다. | 겹친 구간의 중복 event는 Incident에서 억제한다. 처리 지연이 1분을 넘는 운영 상황이 확인되면 window를 다시 조정한다. |
-| Metric 범위 | OCI MySQL CPU, memory, current connections, active connections, backup failure, DB volume을 지원한다. | 추가 metric이 필요할 때 같은 Observation/rule 흐름으로 확장한다. |
+| Metric 범위 | OCI MySQL CPU, memory, current connections, active connections, backup failure, DB volume을 지원한다. | 추가 metric이 필요할 때 같은 ResourceMetricObservation/rule 흐름으로 확장한다. |
 | 무데이터 구분 | 빈 응답이나 dimension/datapoint 누락은 event 없이 버려져 정상 상태와 구분되지 않는다. | poll 성공 여부와 no-data 상태를 metric 또는 별도 alert로 노출한다. |
 | 원본 추적 정보 | OCI dimensions, namespace, compartment, region은 label로 남지만 MQL과 raw payload는 보존하지 않는다. | 장애 분석에 필요해지면 MQL과 provider 응답 식별 정보를 `annotations` 또는 `rawPayload`에 보존한다. |
 
@@ -380,9 +384,9 @@ prod Vault 또는 local 환경변수, threshold는 YAML, service/team은 rule로
 
 ## 8. 다음 확장 시 확인사항
 
-- 새 provider adapter가 SDK 응답을 `MetricObservation`으로 완전히 정규화하는가?
-- provider 원본 metric 이름이 아니라 `MetricKind`를 기준으로 rule을 선택하는가?
-- rule이 provider, resource type, metric kind, unit을 충분히 좁게 검사하는가?
+- 새 cloud provider adapter가 SDK 응답을 `ResourceMetricObservation`으로 완전히 정규화하는가?
+- cloud provider 원본 metric 이름이 아니라 `MetricKind`를 기준으로 rule을 선택하는가?
+- rule이 cloud provider, resource type, metric kind, unit을 충분히 좁게 검사하는가?
 - 출력 `AlertSource`, fingerprint prefix와 Discord routing이 함께 추가됐는가?
 - 새로운 target 설정이 Map의 안정적인 key를 사용하는가?
 - secret과 운영 정책 값이 Vault/YAML 책임에 맞게 배치됐는가?

@@ -3,15 +3,15 @@ package com.wafflestudio.alert.domain.evaluator
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
+import com.wafflestudio.alert.domain.model.CloudProvider
 import com.wafflestudio.alert.domain.model.MetricKind
-import com.wafflestudio.alert.domain.model.MetricObservation
-import com.wafflestudio.alert.domain.model.MetricProvider
 import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import com.wafflestudio.alert.domain.model.Severity
 
 class ResourceMetricEvaluator {
     fun evaluateUtilization(
-        observation: MetricObservation,
+        observation: ResourceMetricObservation,
         threshold: UtilizationThreshold,
     ): AlertEvent? {
         val rule = UTILIZATION_RULES.firstOrNull { it.matches(observation) } ?: return null
@@ -24,7 +24,7 @@ class ResourceMetricEvaluator {
     }
 
     fun evaluateCurrentConnections(
-        observation: MetricObservation,
+        observation: ResourceMetricObservation,
         threshold: CountThreshold,
     ): AlertEvent? =
         evaluateMetric(
@@ -35,7 +35,7 @@ class ResourceMetricEvaluator {
         )
 
     fun evaluateActiveConnections(
-        observation: MetricObservation,
+        observation: ResourceMetricObservation,
         threshold: CountThreshold,
     ): AlertEvent? =
         evaluateMetric(
@@ -45,7 +45,7 @@ class ResourceMetricEvaluator {
             rule = ACTIVE_CONNECTION_RULE,
         )
 
-    fun evaluateBackupFailure(observation: MetricObservation): AlertEvent? =
+    fun evaluateBackupFailure(observation: ResourceMetricObservation): AlertEvent? =
         evaluateMetric(
             observation = observation,
             warningThreshold = BACKUP_FAILURE_VALUE,
@@ -54,7 +54,7 @@ class ResourceMetricEvaluator {
         )
 
     private fun evaluateMetric(
-        observation: MetricObservation,
+        observation: ResourceMetricObservation,
         warningThreshold: Double,
         criticalThreshold: Double,
         rule: MetricRule,
@@ -93,7 +93,7 @@ class ResourceMetricEvaluator {
             thresholdUnit = observation.unit.name,
             comparisonOperator = COMPARISON_OPERATOR,
             observedAt = observation.observedAt,
-            labels = mapOf("provider" to observation.provider.name) + observation.labels,
+            labels = mapOf("cloudProvider" to observation.cloudProvider.name) + observation.labels,
             rawPayload = observation.rawPayload,
         )
     }
@@ -111,7 +111,7 @@ class ResourceMetricEvaluator {
     private fun AlertSource.fingerprintPrefix(): String = name.lowercase().replace('_', '-')
 
     private data class MetricRule(
-        val provider: MetricProvider,
+        val cloudProvider: CloudProvider,
         val resourceType: String,
         val metricKind: MetricKind,
         val unit: MetricUnit,
@@ -122,8 +122,8 @@ class ResourceMetricEvaluator {
         val service: String,
         val team: String,
     ) {
-        fun matches(observation: MetricObservation): Boolean =
-            observation.provider == provider &&
+        fun matches(observation: ResourceMetricObservation): Boolean =
+            observation.cloudProvider == cloudProvider &&
                 observation.resourceType == resourceType &&
                 observation.metricKind == metricKind &&
                 observation.unit == unit
@@ -143,7 +143,7 @@ class ResourceMetricEvaluator {
             title: String,
             metricLabel: String,
         ) = MetricRule(
-            provider = MetricProvider.OCI,
+            cloudProvider = CloudProvider.OCI,
             resourceType = MYSQL_RESOURCE_TYPE,
             metricKind = metricKind,
             unit = unit,

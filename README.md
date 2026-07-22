@@ -83,6 +83,7 @@ com.wafflestudio.alert
 ├── domain                            # 핵심 모델/로직 (프레임워크 독립)
 │   ├── model
 │   │   ├── AlertEvent.kt             # 공통 정규화 모델
+│   │   ├── ResourceMetricObservation.kt # cloud resource polling 중간 모델
 │   │   ├── AlertIncident.kt          # @Entity
 │   │   ├── AlertEventLog.kt          # @Entity
 │   │   └── Enums.kt                  # AlertSource, AlertStatus, Severity
@@ -128,7 +129,8 @@ com.wafflestudio.alert
 [경로 ②] OCI scheduler
   OciMonitoringScheduler / OciCostScheduler (@Scheduled)
     -> OciMonitoringAdapter / OciCostAdapter (SDK 조회)
-    -> Evaluator (threshold 판단)
+    -> Monitoring: ResourceMetricObservation -> Evaluator (threshold 판단)
+    -> Cost: 비용 전용 evaluator
     -> AlertEvent 정규화
     -> AlertIngestionService  (이하 ①과 동일 합류)
 ```

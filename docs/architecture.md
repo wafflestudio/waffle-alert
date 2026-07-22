@@ -159,12 +159,13 @@ Day3  140 USD → 또 초과. fingerprint 설계에 따라 갈림 ↓
 ### 핵심: evaluator만 다르고 그 뒤는 공통
 
 ```
-Prometheus    → [webhook 파싱] ───────────────────────┐
-OCI Monitoring → [긁기 → evaluator: 임계치+상태판단] ──┼→ AlertEvent → AlertIngestionService (공통!)
-OCI Cost      → [긁기 → evaluator: 임계치+날짜fp] ─────┘
+Prometheus     → [webhook 파싱] ───────────────────────────────────┐
+Cloud resource → [polling → ResourceMetricObservation → evaluator] ─┼→ AlertEvent → AlertIngestionService (공통!)
+OCI Cost       → [polling → 비용 전용 evaluator: 임계치+날짜fp] ────┘
 ```
 
-→ Incident/EventLog 구조와 저장/라우팅/알림은 **셋 다 100% 공통.** OCI만 AlertEvent를 만들기까지(evaluator) 일을 더 할 뿐. 그래서 evaluator가 OCI 쪽에만 있다.
+→ Incident/EventLog 구조와 저장/라우팅/알림은 **셋 다 100% 공통.** Alertmanager는 이미 평가된 사건을
+보내고, cloud resource polling 경로만 `ResourceMetricObservation`과 evaluator를 거친다.
 
 ### OCI 때문에 추가로 구현할 것
 
@@ -177,14 +178,15 @@ OCI Cost      → [긁기 → evaluator: 임계치+날짜fp] ─────┘
 
 ```
 inbound/webhook       → AlertEvent 입구 (Alertmanager가 POST)
-source/oci            → AlertEvent 입구 (OCI 긁어서) + scheduler + evaluator
+source/oci            → OCI Monitoring/Cost polling + scheduler
        ↓
 domain/model
   AlertEvent          → 순간 신호 (§1)
+  ResourceMetricObservation → cloud resource polling의 판단 전 관측값
   AlertIncident       → 묶인 문제 (§1) = @Entity = alert_incidents
   AlertEventLog       → 타임라인 (§1) = @Entity = alert_event_logs
   Enums               → AlertSource / AlertStatus / Severity
-domain/evaluator      → OCI 임계치+상태 판단 (Prometheus는 불필요)
+domain/evaluator      → cloud resource metric/비용 평가 (Alertmanager는 불필요)
 domain/service
   IncidentService     → fingerprint 묶기 / 상태전이 (★ 심장)
   AlertIngestionService → 받아서→묶고→기록→알림 조율 (두 경로 합류점)

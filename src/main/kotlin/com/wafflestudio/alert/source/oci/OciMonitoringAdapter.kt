@@ -4,11 +4,11 @@ import com.oracle.bmc.monitoring.MonitoringClient
 import com.oracle.bmc.monitoring.model.MetricData
 import com.oracle.bmc.monitoring.model.SummarizeMetricsDataDetails
 import com.oracle.bmc.monitoring.requests.SummarizeMetricsDataRequest
+import com.wafflestudio.alert.domain.model.CloudProvider
 import com.wafflestudio.alert.domain.model.MetricKind
-import com.wafflestudio.alert.domain.model.MetricObservation
-import com.wafflestudio.alert.domain.model.MetricProvider
 import com.wafflestudio.alert.domain.model.MetricStatistic
 import com.wafflestudio.alert.domain.model.MetricUnit
+import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import java.time.Clock
 import java.time.Duration
 import java.util.Date
@@ -18,7 +18,7 @@ class OciMonitoringAdapter(
     private val region: String,
     private val clock: Clock = Clock.systemUTC(),
 ) {
-    fun fetchMysqlCpuUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlCpuUtilization(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = CPU_UTILIZATION_METRIC,
@@ -27,7 +27,7 @@ class OciMonitoringAdapter(
             filterByResourceType = true,
         )
 
-    fun fetchMysqlMemoryUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlMemoryUtilization(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = MEMORY_UTILIZATION_METRIC,
@@ -36,7 +36,7 @@ class OciMonitoringAdapter(
             filterByResourceType = true,
         )
 
-    fun fetchMysqlCurrentConnections(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlCurrentConnections(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = CURRENT_CONNECTIONS_METRIC,
@@ -45,7 +45,7 @@ class OciMonitoringAdapter(
             filterByResourceType = false,
         )
 
-    fun fetchMysqlActiveConnections(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlActiveConnections(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = ACTIVE_CONNECTIONS_METRIC,
@@ -54,7 +54,7 @@ class OciMonitoringAdapter(
             filterByResourceType = false,
         )
 
-    fun fetchMysqlBackupFailure(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlBackupFailure(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = BACKUP_FAILURE_METRIC,
@@ -63,7 +63,7 @@ class OciMonitoringAdapter(
             filterByResourceType = false,
         )
 
-    fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<MetricObservation> =
+    fun fetchMysqlDbVolumeUtilization(query: OciMysqlMetricQuery): List<ResourceMetricObservation> =
         fetchMysqlMetric(
             query = query,
             metricName = DB_VOLUME_UTILIZATION_METRIC,
@@ -78,7 +78,7 @@ class OciMonitoringAdapter(
         metricKind: MetricKind,
         unit: MetricUnit,
         filterByResourceType: Boolean,
-    ): List<MetricObservation> {
+    ): List<ResourceMetricObservation> {
         val endTime = clock.instant()
         val mql = metricMql(metricName, query.dbSystemId, query.resolution, filterByResourceType)
         val response =
@@ -115,7 +115,7 @@ class OciMonitoringAdapter(
         metricName: String,
         unit: MetricUnit,
         filterByResourceType: Boolean,
-    ): MetricObservation? {
+    ): ResourceMetricObservation? {
         val dimensions = metricData.dimensions.orEmpty()
         val resourceType = dimensions[RESOURCE_TYPE_DIMENSION]
         if (filterByResourceType && resourceType != MYSQL_RESOURCE_TYPE) {
@@ -146,8 +146,8 @@ class OciMonitoringAdapter(
             } ?: return null
         val (observedAt, value) = selectedObservation
 
-        return MetricObservation(
-            provider = MetricProvider.OCI,
+        return ResourceMetricObservation(
+            cloudProvider = CloudProvider.OCI,
             resourceType = resourceType ?: MYSQL_RESOURCE_TYPE,
             resourceId = resourceId,
             resourceName = dimensions[RESOURCE_NAME_DIMENSION] ?: resourceId,

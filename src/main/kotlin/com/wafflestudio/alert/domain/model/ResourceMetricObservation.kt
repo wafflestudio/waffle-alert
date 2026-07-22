@@ -3,12 +3,12 @@ package com.wafflestudio.alert.domain.model
 import java.time.Instant
 
 /**
- * A provider-neutral metric observation passed from a source adapter to an evaluator.
+ * A cloud-provider resource metric passed from a polling adapter to an evaluator.
  *
- * This is not an alert. It only describes one selected observed value for one resource.
+ * This is not an alert and is not used for Alertmanager webhooks. A matching rule converts it to AlertEvent.
  */
-data class MetricObservation(
-    val provider: MetricProvider,
+data class ResourceMetricObservation(
+    val cloudProvider: CloudProvider,
     val resourceType: String,
     val resourceId: String,
     val resourceName: String,
@@ -23,10 +23,9 @@ data class MetricObservation(
     val rawPayload: String? = null,
 )
 
-enum class MetricProvider {
+enum class CloudProvider {
     OCI,
-    AWS_CLOUDWATCH,
-    PROMETHEUS,
+    AWS,
 }
 
 enum class MetricStatistic {
