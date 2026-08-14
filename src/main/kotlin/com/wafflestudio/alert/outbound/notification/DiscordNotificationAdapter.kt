@@ -5,6 +5,7 @@ import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.outbound.notification.routing.DiscordMentionRole
+import com.wafflestudio.alert.source.loki.LokiClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClient
 class DiscordNotificationAdapter(
     private val discordRestClient: RestClient,
     private val discordProperties: DiscordProperties,
+    private val lokiClient: LokiClient,
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -73,13 +75,43 @@ class DiscordNotificationAdapter(
             log.warn("No Discord mention role mapped for team={}, sending without mention", event.team)
         }
 
-        return buildString {
-            mentionRole?.let { append("${it.mention} ") }
-            append("$emoji [${event.status}] ${event.title}")
-            append(" (severity: ${event.severity})")
-            event.service?.let { append(" [service: $it]") }
-            event.resourceName?.let { append(" [resource: $it]") }
-            event.description?.let { append("\n$it") }
+        val base =
+            buildString {
+                mentionRole?.let { append("${it.mention} ") }
+                append("$emoji [${event.status}] ${event.title}")
+                append(" (severity: ${event.severity})")
+                event.service?.let { append(" [service: $it]") }
+                event.resourceName?.let { append(" [resource: $it]") }
+                event.description?.let { append("\n$it") }
+            }
+
+        // traceId는 Loki 기반 alert(ApplicationErrorLog 등)에만 존재. Prometheus/OCI alert는
+        // null이라 기존 메시지 포맷 그대로 나간다 (하위호환).
+        if (event.traceId == null) {
+            return base
         }
+        return base + lokiContextSuffix(event)
+    }
+
+    /** Loki 기반 alert에 로그 원문(대표 몇 줄)과 Grafana Explore 링크를 덧붙인다. */
+    private fun lokiContextSuffix(event: AlertEvent): String {
+        val namespace = event.service
+        val logLines = lokiClient.fetchLogLines(namespace, event.traceId, event.observedAt)
+        val exploreUrl = lokiClient.grafanaExploreUrl(namespace, event.traceId, event.observedAt)
+
+        return buildString {
+            if (logLines.isNotEmpty()) {
+                // Discord 메시지 전체 길이 제한(2000자)을 고려해 원문을 code block으로 감싸되
+                // 일부만(앞쪽 몇 줄) 붙인다 - 전체 맥락은 exploreUrl에서 확인.
+                val preview = logLines.take(LOG_PREVIEW_LINES).joinToString("\n").take(MAX_LOG_PREVIEW_CHARS)
+                append("\n```\n$preview\n```")
+            }
+            exploreUrl?.let { append("\n🔗 [Grafana에서 전체 로그 보기]($it)") }
+        }
+    }
+
+    private companion object {
+        const val LOG_PREVIEW_LINES = 10
+        const val MAX_LOG_PREVIEW_CHARS = 1200
     }
 }

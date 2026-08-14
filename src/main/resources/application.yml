@@ -41,6 +41,13 @@ alert:
       warning-multiplier: 1.5       # 직전 7일 평균 대비 이 배수 이상이면 WARNING
       critical-multiplier: 2.0      # 이 배수 이상이면 CRITICAL
       min-average-amount: 0.5       # 직전 7일 평균이 이 값 미만이면 소액 오탐 방지로 판단 스킵 (테넌시 통화 SGD, 하루 ~1)
+  loki:
+    # 클러스터 내부 서비스 주소. local 프로파일에서는 `kubectl port-forward svc/loki 3100:3100`으로
+    # 우회 접근한다 (docs/architecture.md의 "로컬에서 각 source 테스트하는 법" 패턴).
+    base-url: http://loki.loki.svc.cluster.local:3100
+    grafana-base-url: https://grafana.wafflestudio.com
+    query-window-minutes: 5   # trace_id 없을 때 namespace+시간창 폴백 조회 범위
+    max-lines: 50              # Discord 메시지 길이 제한(2000자) 고려해 과도한 라인 수 방지
 
 management:
   endpoints:
