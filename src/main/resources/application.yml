@@ -27,8 +27,16 @@ discord:
     prometheus-alert: 1525123803284242512
     oci-cost: 1525123822322188308
     oci-monitoring: 1525123771420377200
+    team-infra-alert: 1538228022673408001
 
 alert:
+  team-mapping:
+    # namespace -> discord.channel-ids의 키. Loki 기반 alert(ApplicationErrorLog 등)를
+    # namespace 기준으로 팀 채널에 우선 라우팅한다 (RoutingPolicy 참고). 매핑에 없는
+    # namespace는 소스 기준 기본 채널(channelKeyOf)로 폴백한다.
+    namespace-to-channel:
+      waffle-alert-prod: team-infra-alert
+      pupuri-prod: team-infra-alert
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config

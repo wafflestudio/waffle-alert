@@ -5,6 +5,7 @@ import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.outbound.notification.routing.DiscordMentionRole
+import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
 import com.wafflestudio.alert.source.loki.LokiClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -15,14 +16,17 @@ class DiscordNotificationAdapter(
     private val discordRestClient: RestClient,
     private val discordProperties: DiscordProperties,
     private val lokiClient: LokiClient,
+    private val routingPolicy: RoutingPolicy,
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent) {
-        val channelKey = channelKeyOf(event.source)
+        // namespace가 alert.team-mapping.namespace-to-channel에 매핑돼 있으면 그 팀 채널로
+        // 우선 보내고, 매핑이 없으면 source 기준 기본 채널(prometheus-alert 등)로 폴백한다.
+        val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: channelKeyOf(event.source)
         val channelId = discordProperties.channelIds[channelKey]
         if (channelId.isNullOrBlank()) {
-            log.warn("Discord channel not configured for source={}, skip notify (fingerprint={})", event.source, event.fingerprint)
+            log.warn("Discord channel not configured for channelKey={}, skip notify (fingerprint={})", channelKey, event.fingerprint)
             return
         }
 
