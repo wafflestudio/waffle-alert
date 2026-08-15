@@ -5,6 +5,8 @@ import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.outbound.notification.routing.DiscordMentionRole
+import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
+import com.wafflestudio.alert.source.loki.LokiClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -13,14 +15,18 @@ import org.springframework.web.client.RestClient
 class DiscordNotificationAdapter(
     private val discordRestClient: RestClient,
     private val discordProperties: DiscordProperties,
+    private val lokiClient: LokiClient,
+    private val routingPolicy: RoutingPolicy,
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent) {
-        val channelKey = channelKeyOf(event.source)
+        // namespace가 alert.team-mapping.namespace-to-channel에 매핑돼 있으면 그 팀 채널로
+        // 우선 보내고, 매핑이 없으면 source 기준 기본 채널(prometheus-alert 등)로 폴백한다.
+        val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: channelKeyOf(event.source)
         val channelId = discordProperties.channelIds[channelKey]
         if (channelId.isNullOrBlank()) {
-            log.warn("Discord channel not configured for source={}, skip notify (fingerprint={})", event.source, event.fingerprint)
+            log.warn("Discord channel not configured for channelKey={}, skip notify (fingerprint={})", channelKey, event.fingerprint)
             return
         }
 
@@ -73,13 +79,46 @@ class DiscordNotificationAdapter(
             log.warn("No Discord mention role mapped for team={}, sending without mention", event.team)
         }
 
-        return buildString {
-            mentionRole?.let { append("${it.mention} ") }
-            append("$emoji [${event.status}] ${event.title}")
-            append(" (severity: ${event.severity})")
-            event.service?.let { append(" [service: $it]") }
-            event.resourceName?.let { append(" [resource: $it]") }
-            event.description?.let { append("\n$it") }
+        val base =
+            buildString {
+                mentionRole?.let { append("${it.mention} ") }
+                append("$emoji [${event.status}] ${event.title}")
+                append(" (severity: ${event.severity})")
+                event.service?.let { append(" [service: $it]") }
+                event.resourceName?.let { append(" [resource: $it]") }
+                event.description?.let { append("\n$it") }
+            }
+
+        // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
+        // 붙인다. Prometheus metric/OCI alert는 ruleName이 달라 기존 메시지 포맷 그대로
+        // 나간다 (하위호환).
+        if (event.ruleName != LOKI_ERROR_LOG_RULE_NAME) {
+            return base
         }
+        return base + lokiContextSuffix(event)
+    }
+
+    /** Loki 기반 alert에 로그 원문(대표 몇 줄)과 Grafana Explore 링크를 덧붙인다. */
+    private fun lokiContextSuffix(event: AlertEvent): String {
+        val namespace = event.service
+        val logLines = lokiClient.fetchLogLines(namespace, event.observedAt)
+        val exploreUrl = lokiClient.grafanaExploreUrl(namespace, event.observedAt)
+
+        return buildString {
+            if (logLines.isNotEmpty()) {
+                // Discord 메시지 전체 길이 제한(2000자)을 고려해 원문을 code block으로 감싸되
+                // 일부만(앞쪽 몇 줄) 붙인다 - 전체 맥락은 exploreUrl에서 확인.
+                val preview = logLines.take(LOG_PREVIEW_LINES).joinToString("\n").take(MAX_LOG_PREVIEW_CHARS)
+                append("\n```\n$preview\n```")
+            }
+            exploreUrl?.let { append("\n🔗 [Grafana에서 전체 로그 보기]($it)") }
+        }
+    }
+
+    private companion object {
+        // waffle-world-oci argocd/loki/resources.yaml의 alert 이름과 반드시 일치해야 한다.
+        const val LOKI_ERROR_LOG_RULE_NAME = "ApplicationErrorLog"
+        const val LOG_PREVIEW_LINES = 10
+        const val MAX_LOG_PREVIEW_CHARS = 1200
     }
 }
