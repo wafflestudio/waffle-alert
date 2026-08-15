@@ -87,8 +87,7 @@ class DiscordNotificationAdapter(
 
         // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
         // 붙인다. Prometheus metric/OCI alert는 ruleName이 달라 기존 메시지 포맷 그대로
-        // 나간다 (하위호환). traceId 정밀 조회는 이번 스코프에서 제외 - 로그에 traceId를
-        // 찍는 팀이 없어 namespace+시간창 조회로 충분하다.
+        // 나간다 (하위호환).
         if (event.ruleName != LOKI_ERROR_LOG_RULE_NAME) {
             return base
         }

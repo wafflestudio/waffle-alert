@@ -11,8 +11,7 @@ import java.time.Instant
 
 /**
  * Loki HTTP API(/loki/api/v1/query_range)를 재쿼리해 alert에 딸린 로그 원문을 가져오고,
- * Grafana Explore 딥링크를 만든다. traceId를 로그에 찍는 팀이 없어(2026-08-15 기준) 정밀
- * 조회는 이번 스코프에서 제외 — namespace + observedAt 기준 시간창으로만 조회한다.
+ * Grafana Explore 딥링크를 만든다. namespace + observedAt 기준 시간창으로 조회한다.
  */
 @Component
 class LokiClient(
@@ -71,7 +70,7 @@ class LokiClient(
         // 조립에서 생기는 JSON 이스케이프 버그를 피한다.
         val panes =
             mapOf(
-                "loki-trace" to
+                "loki-logs" to
                     mapOf(
                         "datasource" to "loki",
                         "queries" to

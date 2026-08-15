@@ -50,6 +50,6 @@ class LokiClientTest {
         val panesParam = url.substringAfter("panes=").substringBefore("&")
         val decoded = URLDecoder.decode(panesParam, StandardCharsets.UTF_8)
         val panes = ObjectMapper().readTree(decoded)
-        return panes["loki-trace"]["queries"][0]["expr"].asText()
+        return panes["loki-logs"]["queries"][0]["expr"].asText()
     }
 }
