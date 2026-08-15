@@ -65,7 +65,7 @@ class DiscordNotificationAdapterTest {
 
         verify {
             adapter.sendMessage(
-                "channel-1",
+                "channel-2",
                 match {
                     it.contains("```") &&
                         it.contains("something broke") &&
@@ -86,10 +86,21 @@ class DiscordNotificationAdapterTest {
 
         verify {
             adapter.sendMessage(
-                "channel-1",
+                "channel-2",
                 match { !it.contains("```") && it.contains("Grafana에서 전체 로그 보기") },
             )
         }
+    }
+
+    @Test
+    fun `ApplicationErrorLog는 namespace 매핑이 없어도 prometheus-alert가 아니라 team-infra-alert로 보낸다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "argocd")
+        every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
+        every { lokiClient.grafanaExploreUrl(any(), any()) } returns null
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-2", any()) }
     }
 
     private fun baseEvent(

@@ -6,6 +6,7 @@ import com.wafflestudio.alert.source.loki.LokiProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.DefaultUriBuilderFactory
 
 @Configuration
 class WebClientConfig(
@@ -28,12 +29,21 @@ class WebClientConfig(
             .defaultHeader("Content-Type", "application/json")
             .build()
 
+    // LokiClient가 만드는 LogQL 쿼리 문자열은 `{namespace="..."}` 처럼 리터럴 중괄호를
+    // 포함한다. RestClient의 기본 UriBuilderFactory(EncodingMode.TEMPLATE_AND_VALUES)는
+    // 이 중괄호를 URI 템플릿 변수로 해석하려다 "Not enough variable values available to
+    // expand"로 매 요청마다 실패했다(운영 로그로 실제 확인). VALUES_ONLY로 바꾸면 값에
+    // 템플릿 문법을 적용하지 않고 그대로 퍼센트 인코딩만 하므로, 우리처럼 URI 템플릿을
+    // 아예 안 쓰고 queryParam(name, value)로만 조립하는 경우엔 그대로 안전하게 대체된다.
     @Bean
-    fun lokiRestClient(): RestClient =
-        RestClient
+    fun lokiRestClient(): RestClient {
+        val uriBuilderFactory = DefaultUriBuilderFactory(lokiProperties.baseUrl)
+        uriBuilderFactory.encodingMode = DefaultUriBuilderFactory.EncodingMode.VALUES_ONLY
+        return RestClient
             .builder()
-            .baseUrl(lokiProperties.baseUrl)
+            .uriBuilderFactory(uriBuilderFactory)
             .build()
+    }
 
     // another infra client bean can added in here
 }

@@ -22,8 +22,8 @@ class DiscordNotificationAdapter(
 
     override fun notify(event: AlertEvent) {
         // namespace가 alert.team-mapping.namespace-to-channel에 매핑돼 있으면 그 팀 채널로
-        // 우선 보내고, 매핑이 없으면 source 기준 기본 채널(prometheus-alert 등)로 폴백한다.
-        val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: channelKeyOf(event.source)
+        // 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
+        val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: defaultChannelKeyFor(event)
         val channelId = discordProperties.channelIds[channelKey]
         if (channelId.isNullOrBlank()) {
             log.warn("Discord channel not configured for channelKey={}, skip notify (fingerprint={})", channelKey, event.fingerprint)
@@ -32,6 +32,16 @@ class DiscordNotificationAdapter(
 
         sendMessage(channelId, formatMessage(event))
     }
+
+    /**
+     * Loki 기반 alert(ApplicationErrorLog)는 namespace 매핑이 없으면 team-infra-alert로
+     * 보낸다 - Loki 파이프라인 자체가 infra팀 소유이고, ApplicationErrorLog 룰이 team 매핑이
+     * 안 된 시스템/미할당 네임스페이스(loki, argocd, external-secrets 등)에도 넓게 발동하는데
+     * 이걸 레거시 Prometheus metric alert용 채널(prometheus-alert)에 섞으면 안 된다.
+     * 그 외 alert(Prometheus metric, OCI 등)는 기존처럼 source 기준으로 보낸다.
+     */
+    private fun defaultChannelKeyFor(event: AlertEvent): String =
+        if (event.ruleName == LOKI_ERROR_LOG_RULE_NAME) "team-infra-alert" else channelKeyOf(event.source)
 
     private fun channelKeyOf(source: AlertSource): String =
         when (source) {
@@ -79,13 +89,18 @@ class DiscordNotificationAdapter(
             log.warn("No Discord mention role mapped for team={}, sending without mention", event.team)
         }
 
+        val meta =
+            buildList {
+                add("severity: ${event.severity}")
+                event.service?.let { add("service: $it") }
+                event.resourceName?.let { add("resource: $it") }
+            }
+
         val base =
             buildString {
                 mentionRole?.let { append("${it.mention} ") }
                 append("$emoji [${event.status}] ${event.title}")
-                append(" (severity: ${event.severity})")
-                event.service?.let { append(" [service: $it]") }
-                event.resourceName?.let { append(" [resource: $it]") }
+                append("\n" + meta.joinToString(" · "))
                 event.description?.let { append("\n$it") }
             }
 
