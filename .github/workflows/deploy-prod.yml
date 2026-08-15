@@ -38,4 +38,14 @@ jobs:
           docker push $OCIR_REGISTRY/$OCIR_NAMESPACE/$OCIR_REPOSITORY:$IMAGE_TAG
           docker push $OCIR_REGISTRY/$OCIR_NAMESPACE/$OCIR_REPOSITORY:latest
 
-      # 이미지 push 후 waffle-world-oci의 이미지 태그 갱신은 별도 ocir-image-updater 레포가 처리한다.
+      # ocir-image-updater(레지스트리 push를 감지해 태그를 갱신하던 방식)는 간헐적 오류로
+      # 폐기되고, 이 파이프라인이 직접 kustomize overlay의 태그를 올리는 방식으로 대체됐다
+      # (인프라팀 공지, snutt-ev 928b3f7 참고). image는 argocd/waffle-alert-prod/kustomization.yaml의
+      # images[].name과 정확히 일치해야 한다.
+      - name: Update GitOps image tag
+        uses: wafflestudio/waffle-world-oci/.github/actions/update-image@main
+        with:
+          image: ${{ env.OCIR_REGISTRY }}/${{ env.OCIR_NAMESPACE }}/${{ env.OCIR_REPOSITORY }}
+          tag: ${{ env.IMAGE_TAG }}
+          overlay-path: argocd/waffle-alert-prod
+          private-key: ${{ secrets.DEPLOYER_APP_PRIVATE_KEY }}
