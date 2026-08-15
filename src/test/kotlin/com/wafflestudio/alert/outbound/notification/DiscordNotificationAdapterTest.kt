@@ -26,21 +26,21 @@ class DiscordNotificationAdapterTest {
         }
 
     @Test
-    fun `traceId가 없으면 Loki를 조회하지 않고 기존 포맷 그대로 보낸다`() {
-        val event = baseEvent(traceId = null)
+    fun `ApplicationErrorLog가 아니면 Loki를 조회하지 않고 기존 포맷 그대로 보낸다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh")
 
         adapter.notify(event)
 
-        verify(exactly = 0) { lokiClient.fetchLogLines(any(), any(), any()) }
+        verify(exactly = 0) { lokiClient.fetchLogLines(any(), any()) }
         verify { adapter.sendMessage("channel-1", match { !it.contains("```") }) }
     }
 
     @Test
-    fun `traceId가 있으면 로그 원문과 Grafana 링크를 메시지에 포함한다`() {
-        val event = baseEvent(traceId = "trace-1")
-        every { lokiClient.fetchLogLines("siksha-prod", "trace-1", event.observedAt) } returns
+    fun `ApplicationErrorLog면 namespace 기준으로 Loki를 조회해 로그 원문과 Grafana 링크를 포함한다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog")
+        every { lokiClient.fetchLogLines("siksha-prod", event.observedAt) } returns
             listOf("2026-08-15 ERROR something broke")
-        every { lokiClient.grafanaExploreUrl("siksha-prod", "trace-1", event.observedAt) } returns
+        every { lokiClient.grafanaExploreUrl("siksha-prod", event.observedAt) } returns
             "https://grafana.wafflestudio.com/explore?panes=..."
 
         adapter.notify(event)
@@ -59,9 +59,9 @@ class DiscordNotificationAdapterTest {
 
     @Test
     fun `Loki 조회 결과가 비어있으면 코드블록 없이 링크만 붙인다`() {
-        val event = baseEvent(traceId = "none")
-        every { lokiClient.fetchLogLines("siksha-prod", "none", event.observedAt) } returns emptyList()
-        every { lokiClient.grafanaExploreUrl("siksha-prod", "none", event.observedAt) } returns
+        val event = baseEvent(ruleName = "ApplicationErrorLog")
+        every { lokiClient.fetchLogLines("siksha-prod", event.observedAt) } returns emptyList()
+        every { lokiClient.grafanaExploreUrl("siksha-prod", event.observedAt) } returns
             "https://grafana.wafflestudio.com/explore?panes=..."
 
         adapter.notify(event)
@@ -74,16 +74,15 @@ class DiscordNotificationAdapterTest {
         }
     }
 
-    private fun baseEvent(traceId: String?) =
+    private fun baseEvent(ruleName: String) =
         AlertEvent(
             source = AlertSource.ALERTMANAGER,
             status = AlertStatus.FIRING,
             severity = Severity.WARNING,
             fingerprint = "fp1",
-            ruleName = "ApplicationErrorLog",
+            ruleName = ruleName,
             title = "siksha-prod error log detected",
             service = "siksha-prod",
             observedAt = Instant.parse("2026-08-15T00:00:00Z"),
-            traceId = traceId,
         )
 }

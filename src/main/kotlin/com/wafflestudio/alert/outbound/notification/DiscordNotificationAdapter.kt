@@ -85,9 +85,11 @@ class DiscordNotificationAdapter(
                 event.description?.let { append("\n$it") }
             }
 
-        // traceId는 Loki 기반 alert(ApplicationErrorLog 등)에만 존재. Prometheus/OCI alert는
-        // null이라 기존 메시지 포맷 그대로 나간다 (하위호환).
-        if (event.traceId == null) {
+        // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
+        // 붙인다. Prometheus metric/OCI alert는 ruleName이 달라 기존 메시지 포맷 그대로
+        // 나간다 (하위호환). traceId 정밀 조회는 이번 스코프에서 제외 - 로그에 traceId를
+        // 찍는 팀이 없어 namespace+시간창 조회로 충분하다.
+        if (event.ruleName != LOKI_ERROR_LOG_RULE_NAME) {
             return base
         }
         return base + lokiContextSuffix(event)
@@ -96,8 +98,8 @@ class DiscordNotificationAdapter(
     /** Loki 기반 alert에 로그 원문(대표 몇 줄)과 Grafana Explore 링크를 덧붙인다. */
     private fun lokiContextSuffix(event: AlertEvent): String {
         val namespace = event.service
-        val logLines = lokiClient.fetchLogLines(namespace, event.traceId, event.observedAt)
-        val exploreUrl = lokiClient.grafanaExploreUrl(namespace, event.traceId, event.observedAt)
+        val logLines = lokiClient.fetchLogLines(namespace, event.observedAt)
+        val exploreUrl = lokiClient.grafanaExploreUrl(namespace, event.observedAt)
 
         return buildString {
             if (logLines.isNotEmpty()) {
@@ -111,6 +113,8 @@ class DiscordNotificationAdapter(
     }
 
     private companion object {
+        // waffle-world-oci argocd/loki/resources.yaml의 alert 이름과 반드시 일치해야 한다.
+        const val LOKI_ERROR_LOG_RULE_NAME = "ApplicationErrorLog"
         const val LOG_PREVIEW_LINES = 10
         const val MAX_LOG_PREVIEW_CHARS = 1200
     }

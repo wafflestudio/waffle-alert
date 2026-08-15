@@ -11,8 +11,8 @@ import java.time.Instant
 
 /**
  * Loki HTTP API(/loki/api/v1/query_range)를 재쿼리해 alert에 딸린 로그 원문을 가져오고,
- * Grafana Explore 딥링크를 만든다. trace_id가 있으면 정밀 조회, 없으면("none") namespace로
- * 스코프를 좁힌 시간창 조회로 폴백한다.
+ * Grafana Explore 딥링크를 만든다. traceId를 로그에 찍는 팀이 없어(2026-08-15 기준) 정밀
+ * 조회는 이번 스코프에서 제외 — namespace + observedAt 기준 시간창으로만 조회한다.
  */
 @Component
 class LokiClient(
@@ -22,16 +22,12 @@ class LokiClient(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /**
-     * @param traceId "none"이면 trace_id 없는 것으로 간주해 namespace+시간창 폴백 조회.
-     * @param observedAt alert가 관측된 시각. 쿼리 시간창의 기준.
-     */
+    /** @param observedAt alert가 관측된 시각. 쿼리 시간창의 기준. */
     fun fetchLogLines(
         namespace: String?,
-        traceId: String?,
         observedAt: Instant,
     ): List<String> {
-        val logql = buildQuery(namespace, traceId) ?: return emptyList()
+        val logql = buildQuery(namespace) ?: return emptyList()
         val window = queryWindow(observedAt)
 
         return try {
@@ -57,17 +53,16 @@ class LokiClient(
                 .flatMap { stream -> stream.values.map { it[1] } }
                 .take(lokiProperties.maxLines)
         } catch (e: Exception) {
-            log.error("Failed to query Loki for namespace={}, traceId={}", namespace, traceId, e)
+            log.error("Failed to query Loki for namespace={}", namespace, e)
             emptyList()
         }
     }
 
     fun grafanaExploreUrl(
         namespace: String?,
-        traceId: String?,
         observedAt: Instant,
     ): String? {
-        val logql = buildQuery(namespace, traceId) ?: return null
+        val logql = buildQuery(namespace) ?: return null
         val window = queryWindow(observedAt)
 
         // Grafana Explore URL 구조(panes 파라미터에 URL-encoded JSON): datasource uid는
@@ -100,20 +95,12 @@ class LokiClient(
         return "${lokiProperties.grafanaBaseUrl}/explore?schemaVersion=1&panes=$encodedPanes&orgId=1"
     }
 
-    private fun buildQuery(
-        namespace: String?,
-        traceId: String?,
-    ): String? {
+    private fun buildQuery(namespace: String?): String? {
         if (namespace.isNullOrBlank()) {
             log.warn("Cannot build Loki query without namespace")
             return null
         }
-        val safeNamespace = escapeLogQlString(namespace)
-        return if (!traceId.isNullOrBlank() && traceId != "none") {
-            """{namespace="$safeNamespace"} |= "${escapeLogQlString(traceId)}""""
-        } else {
-            """{namespace="$safeNamespace"}"""
-        }
+        return """{namespace="${escapeLogQlString(namespace)}"}"""
     }
 
     /** LogQL 문자열 리터럴 안에 들어갈 값의 큰따옴표/백슬래시를 이스케이프한다 (쿼리 문법 깨짐 방지). */

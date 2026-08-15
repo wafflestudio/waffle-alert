@@ -30,7 +30,4 @@ data class AlertEvent(
     val labels: Map<String, String> = emptyMap(),
     val annotations: Map<String, String> = emptyMap(),
     val rawPayload: String? = null,
-    // Loki 기반 alert(ApplicationErrorLog 등) 전용. "none"이면 로그에 traceId가 없다는
-    // 뜻으로, Loki 재쿼리 시 namespace+시간창 기반 폴백 조회를 쓴다.
-    val traceId: String? = null,
 )
