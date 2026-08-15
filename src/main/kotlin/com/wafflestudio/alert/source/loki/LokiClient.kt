@@ -36,12 +36,19 @@ class LokiClient(
                     .uri { uriBuilder ->
                         uriBuilder
                             .path("/loki/api/v1/query_range")
-                            .queryParam("query", logql)
+                            // logql은 `{namespace="..."}` 처럼 리터럴 중괄호를 포함한 문자열이다.
+                            // queryParam(name, logql)로 직접 박아넣으면 Spring의 UriBuilder.build()가
+                            // (인코딩 모드와 무관하게 항상) URI 전체를 훑으며 "{...}"를 미해결 URI
+                            // 템플릿 변수로 스캔해버려서 매번 IllegalArgumentException이 났다
+                            // (운영에서 실제로 100% 재현 확인). 진짜 URI 변수 placeholder로 넘겨서
+                            // build()가 값을 한 번만 치환하게 하면, 치환된 값 안의 중괄호는 다시
+                            // 스캔되지 않는다.
+                            .queryParam("query", "{logqlQuery}")
                             .queryParam("start", window.startNanos)
                             .queryParam("end", window.endNanos)
                             .queryParam("limit", lokiProperties.maxLines)
                             .queryParam("direction", "forward")
-                            .build()
+                            .build(logql)
                     }.retrieve()
                     .body(LokiQueryRangeResponse::class.java)
 
