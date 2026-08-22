@@ -48,6 +48,7 @@ class DiscordNotificationAdapter(
             AlertSource.ALERTMANAGER -> "prometheus-alert"
             AlertSource.OCI_COST -> "oci-cost"
             AlertSource.OCI_MONITORING -> "oci-monitoring"
+            AlertSource.K8S -> "k8s-alert"
         }
 
     /**
