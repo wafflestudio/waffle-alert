@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service
 class AlertIngestionService(
     private val notificationPort: NotificationPort,
 ) {
-    fun ingest(event: AlertEvent) {
-        notificationPort.notify(event)
-    }
+    /** @return 알림 전송에 성공했으면 true (NotificationPort 참고). */
+    fun ingest(event: AlertEvent): Boolean = notificationPort.notify(event)
 }
