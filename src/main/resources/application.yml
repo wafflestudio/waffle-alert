@@ -28,6 +28,7 @@ discord:
     oci-cost: 1525123822322188308
     oci-monitoring: 1525123771420377200
     team-infra-alert: 1538228022673408001
+    k8s-alert: 1532713920232554646
 
 alert:
   team-mapping:
@@ -49,6 +50,21 @@ alert:
       warning-multiplier: 1.5       # 직전 7일 평균 대비 이 배수 이상이면 WARNING
       critical-multiplier: 2.0      # 이 배수 이상이면 CRITICAL
       min-average-amount: 0.5       # 직전 7일 평균이 이 값 미만이면 소액 오탐 방지로 판단 스킵 (테넌시 통화 SGD, 하루 ~1)
+  k8s:
+    # 쿠버네티스 API의 watch 스트림으로 Pod/Job/Node 이벤트를 받는다. prod에서만 켠다.
+    # 로컬에서 시험하려면 `kubectl proxy --port=8001`을 띄우고 api-url을 http://localhost:8001로 두면 된다.
+    enabled: false
+    api-url: https://kubernetes.default.svc
+    namespace: ""             # 비우면 클러스터 전체
+    pod: true
+    job: true
+    node: true
+    min-backoff: 1s
+    max-backoff: 60s
+    watch-timeout: 5m         # 이 시간마다 API 서버가 커넥션을 정상 종료 -> 재접속
+    connect-timeout: 5s       # watch에는 read timeout을 두지 않는다
+    api-read-timeout: 10s     # watch가 아닌 일반 요청용
+    max-alerts-per-pod: 3     # 같은 파드에 최대 3회
   loki:
     # 클러스터 내부 서비스 주소. local 프로파일에서는 `kubectl port-forward svc/loki 3100:3100`으로
     # 우회 접근한다 (docs/architecture.md의 "로컬에서 각 source 테스트하는 법" 패턴).
@@ -109,3 +125,8 @@ alert:
   oci:
     auth-type: instance_principal   # 쿠버네티스 Pod에서 instance principal 인증 (Dynamic Group + Policy 필요)
     tenant-id:                      # Vault 주입 (또는 고정 OCID)
+
+  k8s:
+    # ServiceAccount에 pods/jobs/nodes ClusterRole이 필요하다
+    # (waffle-world-oci/argocd/waffle-alert-prod/waffle-alert.yaml).
+    enabled: true
