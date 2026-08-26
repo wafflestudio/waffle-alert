@@ -62,7 +62,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // ── 와플 공통 (OCI Vault secret 주입) ────────────
-    // dev/prod 프로파일에서 DB·Slack secret을 OCI Vault에서 주입받는다.
+    // prod 프로파일에서 DB·Discord·Monitoring target 설정을 OCI Vault에서 주입받는다.
     // GitHub Packages에서 받으며 빌드 시 GITHUB_TOKEN / gh auth token 필요 (read:packages).
     implementation("com.wafflestudio.spring:spring-boot-starter-waffle-oci-vault:2.1.0")
 
