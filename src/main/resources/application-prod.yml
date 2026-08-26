@@ -35,8 +35,8 @@ alert:
               warning: 80.0
               critical: 90.0
             current-connections:
-              warning: 80.0
-              critical: 100.0
+              warning: 150.0
+              critical: 180.0
             active-connections:
               warning: 80.0
               critical: 100.0
