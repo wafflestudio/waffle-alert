@@ -135,14 +135,15 @@ class OciMonitoringAdapter(
                     timestamp.toInstant() to value
                 }
         val selectedObservation =
-            if (
-                metricKind == MetricKind.CPU_UTILIZATION ||
-                metricKind == MetricKind.MEMORY_UTILIZATION ||
-                metricKind == MetricKind.BACKUP_FAILURES
-            ) {
-                observations.maxByOrNull { (_, value) -> value }
-            } else {
-                observations.maxByOrNull { (timestamp) -> timestamp }
+            when (metricKind) {
+                MetricKind.CPU_UTILIZATION,
+                MetricKind.MEMORY_UTILIZATION,
+                MetricKind.BACKUP_FAILURES,
+                -> observations.maxByOrNull { (_, value) -> value }
+                MetricKind.VOLUME_UTILIZATION,
+                MetricKind.CURRENT_CONNECTIONS,
+                MetricKind.ACTIVE_CONNECTIONS,
+                -> observations.maxByOrNull { (timestamp) -> timestamp }
             } ?: return null
         val (observedAt, value) = selectedObservation
 

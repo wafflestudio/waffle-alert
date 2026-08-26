@@ -10,13 +10,11 @@ spring:
 discord:
   bot-token: ${DISCORD_BOT_TOKEN:}
 
-oci:
-  auth:
-    type: config
-  config:
-    profile: ${OCI_CONFIG_PROFILE:DEFAULT}
-
 alert:
+  oci:
+    auth-type: config_file
+    config-file-path: ${OCI_CONFIG_FILE_PATH:~/.oci/config}
+    profile: ${OCI_CONFIG_PROFILE:DEFAULT}
   oci-monitoring:
     # Intentionally profile-specific: local polling may be disabled independently after stabilization.
     enabled: true

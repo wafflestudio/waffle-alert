@@ -2,15 +2,23 @@ spring:
   config:
     activate:
       on-profile: prod
+  datasource:
+    url:                          # Vault 주입
+    username:                     # Vault 주입
+    password:                     # Vault 주입
 
 oci:
-  auth:
-    type: instance_principal
   vault:
     secret-ids: ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqadjrtaoxv4b2kmdicuk4ivfhhqqr4j2g2ecmqe4boknxq
     region: ap-chuncheon-1
 
+discord:
+  bot-token:                      # Vault 주입
+
 alert:
+  oci:
+    auth-type: instance_principal # Kubernetes Pod의 Instance Principal 사용
+    tenant-id:                    # Vault 주입 또는 고정 OCID
   oci-monitoring:
     # Intentionally profile-specific: local polling may be disabled independently after stabilization.
     enabled: true
