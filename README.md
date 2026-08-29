@@ -83,6 +83,7 @@ com.wafflestudio.alert
 ├── domain                            # 핵심 모델/로직 (프레임워크 독립)
 │   ├── model
 │   │   ├── AlertEvent.kt             # 공통 정규화 모델
+│   │   ├── ResourceMetricObservation.kt # cloud resource polling 중간 모델
 │   │   ├── AlertIncident.kt          # @Entity
 │   │   ├── AlertEventLog.kt          # @Entity
 │   │   └── Enums.kt                  # AlertSource, AlertStatus, Severity
@@ -128,7 +129,8 @@ com.wafflestudio.alert
 [경로 ②] OCI scheduler
   OciMonitoringScheduler / OciCostScheduler (@Scheduled)
     -> OciMonitoringAdapter / OciCostAdapter (SDK 조회)
-    -> Evaluator (threshold 판단)
+    -> Monitoring: ResourceMetricObservation -> Evaluator (threshold 판단)
+    -> Cost: 비용 전용 evaluator
     -> AlertEvent 정규화
     -> AlertIngestionService  (이하 ①과 동일 합류)
 ```
@@ -153,9 +155,9 @@ com.wafflestudio.alert
 | 빌드 | Gradle Kotlin DSL | |
 | 테스트 | JUnit5 + MockK + Testcontainers | Kotlin이라 Mockito 대신 MockK |
 | 배포 | Docker + ArgoCD GitOps | native image는 MVP 이후 |
-| 시크릿 | OCI Vault (`spring-boot-starter-waffle-oci-vault`) | dev/prod. local은 직접 설정 |
+| 시크릿 | OCI Vault (`spring-boot-starter-waffle-oci-vault`) | prod. local은 직접 설정 |
 
-> dev/prod의 DB 등 secret은 OCI Vault에서 주입한다 (snutt 패턴). `application.yml`의 dev/prod 프로파일은
+> prod의 DB 등 secret은 OCI Vault에서 주입한다 (snutt 패턴). `application-prod.yml`은
 > 골격만 두고, `spring-boot-starter-waffle-oci-vault` 추가 + secret OCID 연결은 배포 단계에서 한다.
 > 와플 공통 모듈은 GitHub Packages(`maven.pkg.github.com/wafflestudio/spring-waffle`)에서 받으며
 > 빌드 시 `GITHUB_TOKEN` 또는 `gh auth token`이 필요하다.

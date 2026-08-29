@@ -3,7 +3,7 @@ package com.wafflestudio.alert.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Configuration
 
-/** discord.bot-token / discord.channel-ids (AlertSource 이름 -> 채널 ID) 를 application.yml에서 바인딩 */
+/** Spring Environment의 discord.bot-token과 source별 discord.channel-ids를 바인딩한다. */
 @Configuration
 @ConfigurationProperties(prefix = "discord")
 class DiscordProperties {
