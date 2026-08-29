@@ -20,17 +20,17 @@ class DiscordNotificationAdapter(
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    override fun notify(event: AlertEvent) {
+    override fun notify(event: AlertEvent): Boolean {
         // namespace가 alert.team-mapping.namespace-to-channel에 매핑돼 있으면 그 팀 채널로
         // 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
         val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: defaultChannelKeyFor(event)
         val channelId = discordProperties.channelIds[channelKey]
         if (channelId.isNullOrBlank()) {
             log.warn("Discord channel not configured for channelKey={}, skip notify (fingerprint={})", channelKey, event.fingerprint)
-            return
+            return false
         }
 
-        sendMessage(channelId, formatMessage(event))
+        return sendMessage(channelId, formatMessage(event))
     }
 
     /**
@@ -48,6 +48,7 @@ class DiscordNotificationAdapter(
             AlertSource.ALERTMANAGER -> "prometheus-alert"
             AlertSource.OCI_COST -> "oci-cost"
             AlertSource.OCI_MONITORING -> "oci-monitoring"
+            AlertSource.K8S -> "k8s-alert"
         }
 
     /**
@@ -61,10 +62,11 @@ class DiscordNotificationAdapter(
             else -> null
         }
 
+    /** @return 전송 성공 여부. 예외는 여기서 삼킨다 - 호출자(워처/스케줄러)가 알림 실패로 죽으면 안 된다. */
     fun sendMessage(
         channelId: String,
         content: String,
-    ) {
+    ): Boolean =
         try {
             discordRestClient
                 .post()
@@ -72,10 +74,11 @@ class DiscordNotificationAdapter(
                 .body(mapOf("content" to content))
                 .retrieve()
                 .toBodilessEntity()
+            true
         } catch (e: Exception) {
             log.error("Failed to send Discord message to channel={}", channelId, e)
+            false
         }
-    }
 
     private fun formatMessage(event: AlertEvent): String {
         val emoji =

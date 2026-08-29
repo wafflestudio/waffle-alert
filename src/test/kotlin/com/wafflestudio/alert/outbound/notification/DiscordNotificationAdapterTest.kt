@@ -30,7 +30,7 @@ class DiscordNotificationAdapterTest {
     private val lokiClient = mockk<LokiClient>()
     private val adapter =
         spyk(DiscordNotificationAdapter(mockk<RestClient>(relaxed = true), discordProperties, lokiClient, routingPolicy)) {
-            every { sendMessage(any(), any()) } returns Unit
+            every { sendMessage(any(), any()) } returns true
         }
 
     @Test
