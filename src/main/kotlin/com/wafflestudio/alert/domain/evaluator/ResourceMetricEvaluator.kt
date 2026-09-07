@@ -81,7 +81,7 @@ class ResourceMetricEvaluator {
                     "${formatValue(observation.value, observation.unit)} " +
                     "(threshold: ${formatValue(matchedThreshold, observation.unit)}).",
             service = rule.service,
-            team = rule.team,
+            team = null,
             resourceType = observation.resourceType,
             resourceId = observation.resourceId,
             resourceName = observation.resourceName,
@@ -120,7 +120,6 @@ class ResourceMetricEvaluator {
         val title: String,
         val metricLabel: String,
         val service: String,
-        val team: String,
     ) {
         fun matches(observation: ResourceMetricObservation): Boolean =
             observation.cloudProvider == cloudProvider &&
@@ -133,7 +132,6 @@ class ResourceMetricEvaluator {
         private const val COMPARISON_OPERATOR = "GREATER_THAN_OR_EQUAL"
         private const val MYSQL_RESOURCE_TYPE = "mysql"
         private const val OCI_MYSQL_SERVICE = "OCI-DB"
-        private const val OCI_MYSQL_TEAM = "infra"
         private const val BACKUP_FAILURE_VALUE = 1.0
 
         private fun ociMysqlRule(
@@ -152,7 +150,6 @@ class ResourceMetricEvaluator {
             title = title,
             metricLabel = metricLabel,
             service = OCI_MYSQL_SERVICE,
-            team = OCI_MYSQL_TEAM,
         )
 
         private val UTILIZATION_RULES =
