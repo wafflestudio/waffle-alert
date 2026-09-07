@@ -38,7 +38,7 @@ class ResourceMetricEvaluatorTest {
         assertEquals("80.0", event.threshold)
         assertEquals("GREATER_THAN_OR_EQUAL", event.comparisonOperator)
         assertEquals("OCI-DB", event.service)
-        assertEquals("infra", event.team)
+        assertNull(event.team)
     }
 
     @Test
