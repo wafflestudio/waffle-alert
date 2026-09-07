@@ -14,9 +14,7 @@ import com.wafflestudio.alert.source.oci.OciMysqlMetricQuery
 import com.wafflestudio.alert.source.oci.OciMysqlMonitoringProperties
 import com.wafflestudio.alert.source.oci.OciMysqlThresholdProperties
 import com.wafflestudio.alert.source.oci.OciThresholdProperties
-import io.mockk.Runs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import java.time.Instant
@@ -38,7 +36,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlBackupFailure(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -100,7 +98,7 @@ class OciMonitoringSchedulerTest {
                     providerMetricName = "DbVolumeUtilization",
                 ),
             )
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -128,7 +126,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlBackupFailure(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -157,7 +155,7 @@ class OciMonitoringSchedulerTest {
                 ),
             )
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -186,7 +184,7 @@ class OciMonitoringSchedulerTest {
             )
         every { adapter.fetchMysqlBackupFailure(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
@@ -215,7 +213,7 @@ class OciMonitoringSchedulerTest {
         every { adapter.fetchMysqlActiveConnections(any()) } returns emptyList()
         every { adapter.fetchMysqlBackupFailure(any()) } returns emptyList()
         every { adapter.fetchMysqlDbVolumeUtilization(any()) } returns emptyList()
-        every { ingestionService.ingest(any()) } just Runs
+        every { ingestionService.ingest(any()) } returns true
 
         OciMonitoringScheduler(
             adapter = adapter,
