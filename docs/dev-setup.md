@@ -11,8 +11,8 @@
 | **운영(prod)** | MySQL | **OCI Vault** 주입 (`spring-boot-starter-waffle-oci-vault`) |
 
 - 현재 AlertEvent 처리 경로는 DB에 저장하지 않고 Discord로 바로 전달한다.
-- Incident/EventLog entity와 Flyway schema는 이후 fingerprint 묶기와 상태 저장을 위해 먼저 만들어졌다.
-- Repository와 IncidentService는 아직 TODO지만 JPA/Flyway auto-configuration 때문에 기본 기동은 DB 연결을 요구한다.
+- fingerprint 묶기/상태 저장을 위해 시도됐던 Incident/EventLog entity와 schema는 미사용 상태라 제거했다.
+  JPA/Flyway auto-configuration 때문에 기본 기동은 여전히 DB 연결을 요구한다.
 - 운영 DB와 Vault는 로컬에서 접근하지 않는다.
 
 ### 로컬 실행 (동작 확인됨)

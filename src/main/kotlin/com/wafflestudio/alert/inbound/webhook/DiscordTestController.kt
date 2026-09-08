@@ -18,15 +18,18 @@ class DiscordTestController(
     fun sendTestMessage(
         @RequestParam source: AlertSource,
         @RequestParam(required = false) team: String?,
+        @RequestParam(required = false) namespace: String?,
+        @RequestParam(required = false, defaultValue = "test-rule") ruleName: String,
     ): String {
         alertIngestionService.ingest(
             AlertEvent(
                 source = source,
                 status = AlertStatus.FIRING,
                 severity = Severity.WARNING,
-                fingerprint = "test-fingerprint",
-                ruleName = "test-rule",
+                fingerprint = "test-fingerprint-${System.currentTimeMillis()}",
+                ruleName = ruleName,
                 title = "hello infra",
+                service = namespace,
                 team = team,
             ),
         )

@@ -84,15 +84,12 @@ com.wafflestudio.alert
 │   ├── model
 │   │   ├── AlertEvent.kt             # 공통 정규화 모델
 │   │   ├── ResourceMetricObservation.kt # cloud resource polling 중간 모델
-│   │   ├── AlertIncident.kt          # @Entity
-│   │   ├── AlertEventLog.kt          # @Entity
 │   │   └── Enums.kt                  # AlertSource, AlertStatus, Severity
 │   ├── evaluator
 │   │   ├── OciCostEvaluator.kt       # threshold / 증가율 판단
-│   │   └── OciResourceEvaluator.kt   # CPU/mem/storage 판단
+│   │   └── ResourceMetricEvaluator.kt # CPU/mem/connections/storage 판단
 │   └── service
-│       ├── IncidentService.kt        # fingerprint upsert, 상태전이
-│       └── AlertIngestionService.kt  # AlertEvent -> incident/log -> notify
+│       └── AlertIngestionService.kt  # AlertEvent -> notify (상태 없음, DB 미사용)
 │
 ├── outbound                          # 나가는 알림
 │   └── notification
@@ -101,12 +98,8 @@ com.wafflestudio.alert
 │       ├── DiscordNotificationAdapter.kt
 │       ├── WebhookNotificationAdapter.kt
 │       └── routing
-│           ├── RoutingPolicy.kt      # namespace/service -> 채널/팀 매핑
+│           ├── RoutingPolicy.kt      # namespace + alert 성격(app/infra) -> 채널 매핑
 │           └── TeamMappingConfig.kt  # @ConfigurationProperties (yaml로 관리)
-│
-├── persistence
-│   ├── AlertIncidentRepository.kt    # JpaRepository
-│   └── AlertEventLogRepository.kt
 │
 └── config
     ├── SchedulingConfig.kt
@@ -121,8 +114,6 @@ com.wafflestudio.alert
     -> AlertmanagerPayload 파싱
     -> AlertEvent 정규화
     -> AlertIngestionService
-        -> IncidentService.upsert(fingerprint)   # 상태전이/repeat 판단
-        -> AlertEventLog 기록
         -> RoutingPolicy로 채널/팀 결정
         -> NotificationPort 전송 (Slack @팀태깅 / Discord)
 

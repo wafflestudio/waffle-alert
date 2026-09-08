@@ -30,15 +30,49 @@ discord:
     oci-monitoring: 1525123771420377200
     team-infra-alert: 1538228022673408001
     k8s-alert: 1532713920232554646
+    waffice-app-alert: 1545815162001424384
+    waffice-infra-alert: 1546753138663362610
+    wacruit-app-alert: 1545815197254688899
+    wacruit-infra-alert: 1546753479157227540
+    snutt-app-alert: 1545815248664133723
+    snutt-infra-alert: 1546753835039457370
+    siksha-app-alert: 1545815282054860861
+    siksha-infra-alert: 1546753931768758322
+    allclear-app-alert: 1545815310320537640
+    allclear-infra-alert: 1546754731605627002
+    hangsha-app-alert: 1545815417153519716
+    hangsha-infra-alert: 1546754949550047252
 
 alert:
   team-mapping:
-    # namespace -> discord.channel-ids의 키. Loki 기반 alert(ApplicationErrorLog 등)를
-    # namespace 기준으로 팀 채널에 우선 라우팅한다 (RoutingPolicy 참고). 매핑에 없는
-    # namespace는 소스 기준 기본 채널(channelKeyOf)로 폴백한다.
-    namespace-to-channel:
-      waffle-alert-prod: team-infra-alert
-      pupuri-prod: team-infra-alert
+    # namespace -> 팀의 discord.channel-ids 키. app은 Loki 기반 애플리케이션 에러 로그
+    # (ApplicationErrorLog), infra는 Prometheus/K8s watch 등 워크로드 alert (RoutingPolicy,
+    # ChannelType 참고). 매핑에 없는 namespace/channelType은 소스 기준 기본 채널로 폴백한다.
+    namespaces:
+      waffle-alert-prod:
+        app: team-infra-alert
+        infra: team-infra-alert
+      pupuri-prod:
+        app: team-infra-alert
+        infra: team-infra-alert
+      waffice-prod:
+        app: waffice-app-alert
+        infra: waffice-infra-alert
+      wacruit-prod:
+        app: wacruit-app-alert
+        infra: wacruit-infra-alert
+      snutt-prod:
+        app: snutt-app-alert
+        infra: snutt-infra-alert
+      siksha-prod:
+        app: siksha-app-alert
+        infra: siksha-infra-alert
+      allclear-prod:
+        app: allclear-app-alert
+        infra: allclear-infra-alert
+      hangsha-prod:
+        app: hangsha-app-alert
+        infra: hangsha-infra-alert
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config

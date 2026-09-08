@@ -4,6 +4,7 @@ import com.wafflestudio.alert.config.DiscordProperties
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
+import com.wafflestudio.alert.outbound.notification.routing.ChannelType
 import com.wafflestudio.alert.outbound.notification.routing.DiscordMentionRole
 import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
 import com.wafflestudio.alert.source.loki.LokiClient
@@ -21,9 +22,10 @@ class DiscordNotificationAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent): Boolean {
-        // namespace가 alert.team-mapping.namespace-to-channel에 매핑돼 있으면 그 팀 채널로
-        // 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
-        val channelKey = routingPolicy.channelKeyForNamespace(event.service) ?: defaultChannelKeyFor(event)
+        // namespace가 alert.team-mapping.namespaces에 매핑돼 있으면 alert 성격(app/infra)에 맞는
+        // 팀 채널로 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
+        val channelType = channelTypeOf(event)
+        val channelKey = routingPolicy.channelKeyForNamespace(event.service, channelType) ?: defaultChannelKeyFor(event)
         val channelId = discordProperties.channelIds[channelKey]
         if (channelId.isNullOrBlank()) {
             log.warn("Discord channel not configured for channelKey={}, skip notify (fingerprint={})", channelKey, event.fingerprint)
@@ -32,6 +34,10 @@ class DiscordNotificationAdapter(
 
         return sendMessage(channelId, formatMessage(event))
     }
+
+    /** Loki 기반 애플리케이션 에러 로그만 APPLICATION, 그 외(Prometheus/K8s/OCI)는 WORKLOAD. */
+    private fun channelTypeOf(event: AlertEvent): ChannelType =
+        if (event.ruleName == LOKI_ERROR_LOG_RULE_NAME) ChannelType.APPLICATION else ChannelType.WORKLOAD
 
     /**
      * Loki 기반 alert(ApplicationErrorLog)는 namespace 매핑이 없으면 team-infra-alert로
