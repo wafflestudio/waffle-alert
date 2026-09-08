@@ -2,6 +2,9 @@
 
 > `AlertIncident`/`AlertEventLog`(DB 저장, fingerprint 묶기)는 이번 단계에서 보류.
 > 이번 단계는 **각 source가 `AlertEvent`를 채워서 `AlertIngestionService`에 넘기면 Discord로 나간다**까지만 만든다.
+>
+> (이후 갱신) 위 보류였던 `AlertIncident`/`AlertEventLog`는 실제로 쓰이지 않아 코드베이스에서
+> 제거됐다. `AlertIngestionService`는 지금도 `NotificationPort`를 바로 호출하는 상태 없는 얇은 계층이다.
 
 ## 1. 전체 흐름
 
