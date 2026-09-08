@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.web.client.RestClient
 import java.time.Instant
@@ -122,12 +123,33 @@ class DiscordNotificationAdapterTest {
         verify { adapter.sendMessage("channel-2", any()) }
     }
 
+    @Test
+    fun `ApplicationErrorLog의 RESOLVED는 전송하지 않는다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod", status = AlertStatus.RESOLVED)
+
+        val result = adapter.notify(event)
+
+        assertTrue(result)
+        verify(exactly = 0) { lokiClient.fetchLogLines(any(), any()) }
+        verify(exactly = 0) { adapter.sendMessage(any(), any()) }
+    }
+
+    @Test
+    fun `워크로드 alert의 RESOLVED는 그대로 전송한다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod", status = AlertStatus.RESOLVED)
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-4", match { it.contains("RESOLVED") }) }
+    }
+
     private fun baseEvent(
         ruleName: String,
         namespace: String,
+        status: AlertStatus = AlertStatus.FIRING,
     ) = AlertEvent(
         source = AlertSource.ALERTMANAGER,
-        status = AlertStatus.FIRING,
+        status = status,
         severity = Severity.WARNING,
         fingerprint = "fp1",
         ruleName = ruleName,

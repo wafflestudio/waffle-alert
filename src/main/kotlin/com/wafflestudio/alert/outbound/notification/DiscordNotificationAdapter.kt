@@ -22,6 +22,15 @@ class DiscordNotificationAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent): Boolean {
+        // ApplicationErrorLog는 "최근 2분간 에러 로그가 있었다"는 순간적 이벤트를 상태 기반
+        // alerting(FIRING/RESOLVED)에 끼워 넣은 것이라, RESOLVED가 "장애 해소"가 아니라
+        // "최근 2분간 에러가 없었다"는 의미밖에 없다 - 에러가 산발적으로만 찍히는 pod는
+        // FIRING/RESOLVED가 몇 초~몇 분 간격으로 계속 반복돼 노이즈만 된다. FIRING만 보낸다.
+        if (event.ruleName == LOKI_ERROR_LOG_RULE_NAME && event.status == AlertStatus.RESOLVED) {
+            log.debug("Skip ApplicationErrorLog RESOLVED (fingerprint={})", event.fingerprint)
+            return true
+        }
+
         // namespace가 alert.team-mapping.namespaces에 매핑돼 있으면 alert 성격(app/infra)에 맞는
         // 팀 채널로 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
         val channelType = channelTypeOf(event)
