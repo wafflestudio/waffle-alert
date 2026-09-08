@@ -22,6 +22,11 @@ class DiscordNotificationAdapter(
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent): Boolean {
+        if (event.isResolvedApplicationErrorLog) {
+            log.debug("Skip ApplicationErrorLog RESOLVED (fingerprint={})", event.fingerprint)
+            return true
+        }
+
         // namespace가 alert.team-mapping.namespaces에 매핑돼 있으면 alert 성격(app/infra)에 맞는
         // 팀 채널로 우선 보내고, 매핑이 없으면 기본 채널로 폴백한다.
         val channelType = channelTypeOf(event)
@@ -37,7 +42,7 @@ class DiscordNotificationAdapter(
 
     /** Loki 기반 애플리케이션 에러 로그만 APPLICATION, 그 외(Prometheus/K8s/OCI)는 WORKLOAD. */
     private fun channelTypeOf(event: AlertEvent): ChannelType =
-        if (event.ruleName == LOKI_ERROR_LOG_RULE_NAME) ChannelType.APPLICATION else ChannelType.WORKLOAD
+        if (event.isApplicationErrorLog) ChannelType.APPLICATION else ChannelType.WORKLOAD
 
     /**
      * Loki 기반 alert(ApplicationErrorLog)는 namespace 매핑이 없으면 team-infra-alert로
@@ -47,7 +52,7 @@ class DiscordNotificationAdapter(
      * 그 외 alert(Prometheus metric, OCI 등)는 기존처럼 source 기준으로 보낸다.
      */
     private fun defaultChannelKeyFor(event: AlertEvent): String =
-        if (event.ruleName == LOKI_ERROR_LOG_RULE_NAME) "team-infra-alert" else channelKeyOf(event.source)
+        if (event.isApplicationErrorLog) "team-infra-alert" else channelKeyOf(event.source)
 
     private fun channelKeyOf(source: AlertSource): String =
         when (source) {
@@ -116,7 +121,7 @@ class DiscordNotificationAdapter(
         // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
         // 붙인다. Prometheus metric/OCI alert는 ruleName이 달라 기존 메시지 포맷 그대로
         // 나간다 (하위호환).
-        if (event.ruleName != LOKI_ERROR_LOG_RULE_NAME) {
+        if (!event.isApplicationErrorLog) {
             return base
         }
         return base + lokiContextSuffix(event)
@@ -138,6 +143,19 @@ class DiscordNotificationAdapter(
             exploreUrl?.let { append("\n🔗 [Grafana에서 전체 로그 보기]($it)") }
         }
     }
+
+    /** waffle-world-oci argocd/loki/resources.yaml의 ApplicationErrorLog rule이 만든 alert인지. */
+    private val AlertEvent.isApplicationErrorLog: Boolean
+        get() = ruleName == LOKI_ERROR_LOG_RULE_NAME
+
+    /**
+     * ApplicationErrorLog는 "최근 2분간 에러 로그가 있었다"는 순간적 이벤트를 상태 기반
+     * alerting(FIRING/RESOLVED)에 끼워 넣은 것이라, RESOLVED가 "장애 해소"가 아니라
+     * "최근 2분간 에러가 없었다"는 의미밖에 없다 - 에러가 산발적으로만 찍히는 pod는
+     * FIRING/RESOLVED가 몇 초~몇 분 간격으로 계속 반복돼 노이즈만 된다.
+     */
+    private val AlertEvent.isResolvedApplicationErrorLog: Boolean
+        get() = isApplicationErrorLog && status == AlertStatus.RESOLVED
 
     private companion object {
         // waffle-world-oci argocd/loki/resources.yaml의 alert 이름과 반드시 일치해야 한다.
