@@ -42,6 +42,8 @@ discord:
     allclear-infra-alert: 1546754731605627002
     hangsha-app-alert: 1545815417153519716
     hangsha-infra-alert: 1546754949550047252
+    snuclear-app-alert: 1546784401713660045
+    snuclear-infra-alert: 1546784422907482233
 
 alert:
   team-mapping:
@@ -73,6 +75,9 @@ alert:
       hangsha-prod:
         app: hangsha-app-alert
         infra: hangsha-infra-alert
+      snuclear-prod:
+        app: snuclear-app-alert
+        infra: snuclear-infra-alert
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config
