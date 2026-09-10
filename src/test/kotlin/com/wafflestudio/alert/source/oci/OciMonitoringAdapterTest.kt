@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
@@ -55,6 +56,7 @@ class OciMonitoringAdapterTest {
                 OciMysqlMetricQuery(
                     compartmentId = "ocid1.compartment.oc1..example",
                     dbSystemId = "ocid1.mysqldbsystem.oc1..example",
+                    window = Duration.ofMinutes(16),
                 ),
             )
 
@@ -66,6 +68,10 @@ class OciMonitoringAdapterTest {
         assertEquals("wafflestudio-mysql", observations.single().resourceName)
         assertEquals("ap-chuncheon-1", observations.single().labels["region"])
         assertEquals("oci_mysql_database", observations.single().labels["namespace"])
+        assertEquals("2026-07-12T00:49:00Z", observations.single().labels["queryStartTime"])
+        assertEquals("2026-07-12T01:05:00Z", observations.single().labels["queryEndTime"])
+        assertEquals(Date.from(Instant.parse("2026-07-12T00:49:00Z")), requestSlot.captured.summarizeMetricsDataDetails.startTime)
+        assertEquals(Date.from(Instant.parse("2026-07-12T01:05:00Z")), requestSlot.captured.summarizeMetricsDataDetails.endTime)
         assertEquals(
             "CPUUtilization[1m]{resourceId = \"ocid1.mysqldbsystem.oc1..example\", resourceType = \"mysql\"}.mean()",
             requestSlot.captured.summarizeMetricsDataDetails.query,
