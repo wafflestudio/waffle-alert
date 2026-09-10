@@ -45,7 +45,7 @@ OCI CLI 인증으로 호출한다. Vault는 prod에서만 사용한다.**
 `oci.auth.type=config`으로 동작하고, 운영 `prod` 프로파일은 Instance Principal과 Vault를 사용한다.
 
 기본 `local` 프로파일은 Discord 전달 확인을 위해 threshold만 낮게 덮어쓴다.
-polling 주기는 local 1분, prod 3분이다. prod는 4분 window로 조회해 실행 사이에 1분을 겹친다.
+polling 주기는 local 1분, prod 15분이다. prod는 16분 window로 조회해 실행 사이에 1분을 겹친다.
 DB System OCID와 compartment OCID, 대상 활성화 여부, Discord bot token은 커밋하지 않고
 환경변수로 주입한다.
 
@@ -77,7 +77,7 @@ main push
 - `Dockerfile`: 멀티스테이지 (temurin 25 jdk 빌드 → jre 런타임). 검증 완료.
 - 와플 공통모듈(spring-waffle)은 GitHub Packages에서 받으며 빌드 시 `GITHUB_TOKEN`(`read:packages` 스코프) 필요.
 - 운영 manifest는 `SPRING_PROFILES_ACTIVE=prod`와 `waffle-alert` ServiceAccount를 사용한다.
-- main merge 후 새 이미지가 배포되면 첫 polling은 앱 기동 후 시작하고, 이후 각 실행 완료 시점부터 3분 간격으로 반복한다.
+- main merge 후 새 이미지가 배포되면 첫 polling은 앱 기동 후 시작하고, 이후 각 실행 완료 시점부터 15분 간격으로 반복한다.
 - Pod의 Instance Principal에 Vault secret과 Monitoring metric read 권한이 있어야 하며, DB startup 연결도 성공해야 한다.
 - 운영 metric이 warning threshold보다 낮으면 Discord 메시지가 없는 것이 정상이다. 배포 성공과 polling 실패 여부는 Pod 로그로 확인한다.
 
