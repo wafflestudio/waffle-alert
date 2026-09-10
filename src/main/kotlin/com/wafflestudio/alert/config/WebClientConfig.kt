@@ -2,10 +2,13 @@ package com.wafflestudio.alert.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.wafflestudio.alert.source.exchange.ExchangeRateProperties
 import com.wafflestudio.alert.source.loki.LokiProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.web.client.RestClient
+import java.time.Duration
 
 @Configuration
 class WebClientConfig(
@@ -35,5 +38,17 @@ class WebClientConfig(
             .baseUrl(lokiProperties.baseUrl)
             .build()
 
-    // another infra client bean can added in here
+    @Bean
+    fun exchangeRateRestClient(exchangeRateProperties: ExchangeRateProperties): RestClient {
+        val requestFactory =
+            SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(Duration.ofSeconds(3))
+                setReadTimeout(Duration.ofSeconds(3))
+            }
+        return RestClient
+            .builder()
+            .requestFactory(requestFactory)
+            .baseUrl(exchangeRateProperties.baseUrl)
+            .build()
+    }
 }

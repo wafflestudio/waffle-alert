@@ -4,6 +4,7 @@ import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.domain.model.Severity
+import com.wafflestudio.alert.source.exchange.ExchangeRateProvider
 import com.wafflestudio.alert.source.oci.CostBucket
 import com.wafflestudio.alert.source.oci.OciCostProperties
 import com.wafflestudio.alert.source.oci.WeeklyCost
@@ -20,6 +21,7 @@ import java.time.temporal.ChronoUnit
 @Component
 class OciCostEvaluator(
     private val props: OciCostProperties,
+    private val exchangeRateProvider: ExchangeRateProvider? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val dateFmt = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC)
@@ -69,6 +71,12 @@ class OciCostEvaluator(
             }
 
         val day = dateFmt.format(target.periodStart)
+        val isSgd = target.currency.equals("SGD", ignoreCase = true)
+        val exchangeRate = if (isSgd) exchangeRateProvider?.getSgdToKrwRate() else null
+        val targetKrw = if (isSgd && exchangeRate != null) " (약 ${exchangeRate.formatWon(target.amount)})" else ""
+        val avgKrw = if (isSgd && exchangeRate != null) " ${target.currency} (약 ${exchangeRate.formatWon(avg)})" else ""
+        val rateSuffix = if (isSgd && exchangeRate != null) "\n\n환율: ${exchangeRate.formatSummary()}" else ""
+
         return AlertEvent(
             source = AlertSource.OCI_COST,
             status = AlertStatus.FIRING, // firing말고 다른거 추가해야하는데 까먹을듯
@@ -77,9 +85,9 @@ class OciCostEvaluator(
             ruleName = "oci-cost-spike",
             title = "OCI 일일 비용 급증",
             description =
-                "$day 비용 ${target.amount.setScale(2, RoundingMode.HALF_UP)} ${target.currency} " +
-                    "(직전 7일 평균 ${avg.setScale(2, RoundingMode.HALF_UP)} 대비 " +
-                    "${ratio.setScale(2, RoundingMode.HALF_UP)}배)",
+                "$day 비용 ${target.amount.setScale(2, RoundingMode.HALF_UP)} ${target.currency}$targetKrw " +
+                    "(직전 7일 평균 ${avg.setScale(2, RoundingMode.HALF_UP)}$avgKrw 대비 " +
+                    "${ratio.setScale(2, RoundingMode.HALF_UP)}배)$rateSuffix",
             team = "infra",
         )
     }
@@ -90,18 +98,36 @@ class OciCostEvaluator(
     ): AlertEvent {
         val weekFmt = DateTimeFormatter.ofPattern("MM/dd")
         val monthFmt = DateTimeFormatter.ofPattern("yyyy-MM").withZone(ZoneOffset.UTC)
+        val hasSgd =
+            weekly.any { it.currency.equals("SGD", ignoreCase = true) } ||
+                monthly.any { it.currency.equals("SGD", ignoreCase = true) }
+        val exchangeRate = if (hasSgd) exchangeRateProvider?.getSgdToKrwRate() else null
 
         val weeklyLines =
             weekly.joinToString("\n") { w ->
                 val end = w.weekStart.plusDays(6)
+                val krw =
+                    if (w.currency.equals("SGD", ignoreCase = true) && exchangeRate != null) {
+                        " (약 ${exchangeRate.formatWon(w.amount)})"
+                    } else {
+                        ""
+                    }
                 "  ${w.weekStart.format(weekFmt)}~${end.format(weekFmt)}: " +
-                    "${w.amount.setScale(2, RoundingMode.HALF_UP)} ${w.currency}"
+                    "${w.amount.setScale(2, RoundingMode.HALF_UP)} ${w.currency}$krw"
             }
         val monthlyLines =
             monthly.joinToString("\n") { m ->
+                val krw =
+                    if (m.currency.equals("SGD", ignoreCase = true) && exchangeRate != null) {
+                        " (약 ${exchangeRate.formatWon(m.amount)})"
+                    } else {
+                        ""
+                    }
                 "  ${monthFmt.format(m.periodStart)}: " +
-                    "${m.amount.setScale(2, RoundingMode.HALF_UP)} ${m.currency}"
+                    "${m.amount.setScale(2, RoundingMode.HALF_UP)} ${m.currency}$krw"
             }
+
+        val rateSuffix = if (hasSgd && exchangeRate != null) "\n\n환율: ${exchangeRate.formatSummary()}" else ""
 
         val description =
             buildString {
@@ -110,6 +136,9 @@ class OciCostEvaluator(
                 appendLine()
                 appendLine("[월별 추이 (최근 ${monthly.size}달)]")
                 append(monthlyLines)
+                if (rateSuffix.isNotEmpty()) {
+                    append(rateSuffix)
+                }
             }
 
         return AlertEvent(

@@ -112,6 +112,10 @@ alert:
     grafana-base-url: https://grafana.wafflestudio.com
     query-window-minutes: 5   # namespace+시간창 조회 범위
     max-lines: 50              # Discord 메시지 길이 제한(2000자) 고려해 과도한 라인 수 방지
+  exchange-rate:
+    base-url: https://api.frankfurter.dev
+    cache-ttl-hours: 12
+    failure-retry-minutes: 30
 
 management:
   endpoints:
