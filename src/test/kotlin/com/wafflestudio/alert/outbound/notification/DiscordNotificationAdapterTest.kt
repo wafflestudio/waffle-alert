@@ -96,6 +96,26 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
+    fun `ApplicationErrorLog는 severity가 항상 warning 고정값이라 메시지에 표시하지 않는다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod")
+        every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
+        every { lokiClient.grafanaExploreUrl(any(), any()) } returns null
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-3", match { !it.contains("severity") }) }
+    }
+
+    @Test
+    fun `워크로드 alert는 severity를 그대로 표시한다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod")
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-4", match { it.contains("severity: WARNING") }) }
+    }
+
+    @Test
     fun `Loki 조회 결과가 비어있으면 코드블록 없이 링크만 붙인다`() {
         val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod")
         every { lokiClient.fetchLogLines("siksha-prod", event.observedAt) } returns emptyList()
