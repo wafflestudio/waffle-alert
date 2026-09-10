@@ -64,7 +64,7 @@ OCI Monitoring/Cost API:
 | fingerprint | payload/라벨 | service+metric+resource | metric + **날짜**(보통) |
 | evaluator | 불필요 | 필요 | 필요 |
 
-### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 3분 주기, 임계치 80%)
+### 시나리오 A — OCI Monitoring (MySQL CPU, 운영 15분 주기, 임계치 80%)
 
 ```
 10:00  CPU 60%  → 정상. 아무 일도 안 함 (정상값은 AlertEvent를 만들지 않는다).

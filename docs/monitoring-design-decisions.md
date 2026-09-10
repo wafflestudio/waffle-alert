@@ -272,8 +272,8 @@ local과 prod를 바로 비교할 수 있게 한다.
 | 설정 | local | prod |
 | --- | --- | --- |
 | OCI 인증 | OCI config profile | Instance Principal |
-| Polling 주기 | 1분 | 3분 |
-| Query window | 5분 | 4분 |
+| Polling 주기 | 1분 | 15분 |
+| Query window | 5분 | 16분 |
 | CPU warning/critical | 1 / 2 | 80 / 90 |
 | Memory warning/critical | 1 / 2 | 80 / 90 |
 | Current connections warning/critical (count) | 1 / 2 | 80 / 100 |
@@ -287,8 +287,8 @@ Backup failure는 별도 threshold 없이 OCI status 1을 CRITICAL event로 평�
 낮은 local threshold는 실제 운영 기준이 아니라 OCI 조회부터 Discord 출력까지 연결됐는지 확인하기 위한
 값이다. Vault bootstrap은 prod에만 두고, Monitoring 활성화 여부는 local과 prod에서 독립적으로 바꿀 수
 있도록 각 profile에 명시한다.
-Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 3분을 기다린다.
-prod query window는 4분으로 두어 실행 사이에 1분을 겹친다.
+Scheduler는 `fixedDelay`를 사용하므로 각 polling 실행이 끝난 뒤 local은 1분, prod는 15분을 기다린다.
+prod query window는 16분으로 두어 실행 사이에 1분을 겹친다.
 처리 시간이 길어져도 실행이 겹치지 않는다.
 
 ### 현재 DB 상태
@@ -374,7 +374,7 @@ prod Vault 또는 local 환경변수, threshold는 YAML, service/team은 rule로
 | 항목 | 현재 상태 | 후속 작업 |
 | --- | --- | --- |
 | 상태 수명주기 | OCI는 정상값을 버리고 `FIRING`만 생성하므로 지속 장애는 polling마다 알림이 오고 `RESOLVED`는 오지 않는다. | Incident를 구현해 fingerprint별 `FIRING`/`REPEATED`/`RESOLVED` 상태와 알림 억제를 관리한다. |
-| Metric 누락 구간 | Incident 구현 전 임시 보완으로 prod polling을 3분, query window를 4분으로 두고 1분을 겹친다. CPU/memory/backup failure는 window의 peak, current/active connections와 DB volume은 최신값을 평가한다. local은 기존 1분 polling/5분 window를 유지한다. | 겹친 구간의 중복 event는 Incident에서 억제한다. 처리 지연이 1분을 넘는 운영 상황이 확인되면 window를 다시 조정한다. |
+| Metric 누락 구간 | Incident 구현 전 임시 보완으로 prod polling을 15분, query window를 16분으로 두고 1분을 겹친다. CPU/memory/backup failure는 window의 peak, current/active connections와 DB volume은 최신값을 평가한다. local은 기존 1분 polling/5분 window를 유지한다. | 겹친 구간의 중복 event는 Incident에서 억제한다. 처리 지연이 1분을 넘는 운영 상황이 확인되면 window를 다시 조정한다. |
 | Metric 범위 | OCI MySQL CPU, memory, current connections, active connections, backup failure, DB volume을 지원한다. | 추가 metric이 필요할 때 같은 ResourceMetricObservation/rule 흐름으로 확장한다. |
 | 무데이터 구분 | 빈 응답이나 dimension/datapoint 누락은 event 없이 버려져 정상 상태와 구분되지 않는다. | poll 성공 여부와 no-data 상태를 metric 또는 별도 alert로 노출한다. |
 | 원본 추적 정보 | OCI dimensions, namespace, compartment, region은 label로 남지만 MQL과 raw payload는 보존하지 않는다. | 장애 분석에 필요해지면 MQL과 provider 응답 식별 정보를 `annotations` 또는 `rawPayload`에 보존한다. |
