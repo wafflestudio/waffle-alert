@@ -11,6 +11,9 @@ import com.wafflestudio.alert.source.loki.LokiClient
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Component
 class DiscordNotificationAdapter(
@@ -116,6 +119,7 @@ class DiscordNotificationAdapter(
                 append("$emoji [${event.status}] ${event.title}")
                 append("\n" + meta.joinToString(" · "))
                 event.description?.let { append("\n$it") }
+                event.queryWindowLine()?.let { append("\n$it") }
             }
 
         // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
@@ -126,6 +130,15 @@ class DiscordNotificationAdapter(
         }
         return base + lokiContextSuffix(event)
     }
+
+    private fun AlertEvent.queryWindowLine(): String? {
+        if (source != AlertSource.OCI_MONITORING) return null
+        val start = labels[QUERY_START_TIME_LABEL]?.toInstantOrNull() ?: return null
+        val end = labels[QUERY_END_TIME_LABEL]?.toInstantOrNull() ?: return null
+        return "조회 범위: ${KST_FORMAT.format(start)} ~ ${KST_FORMAT.format(end)} KST"
+    }
+
+    private fun String.toInstantOrNull(): Instant? = runCatching(Instant::parse).getOrNull()
 
     /** Loki 기반 alert에 로그 원문(대표 몇 줄)과 Grafana Explore 링크를 덧붙인다. */
     private fun lokiContextSuffix(event: AlertEvent): String {
@@ -162,5 +175,8 @@ class DiscordNotificationAdapter(
         const val LOKI_ERROR_LOG_RULE_NAME = "ApplicationErrorLog"
         const val LOG_PREVIEW_LINES = 10
         const val MAX_LOG_PREVIEW_CHARS = 1200
+        private const val QUERY_START_TIME_LABEL = "queryStartTime"
+        private const val QUERY_END_TIME_LABEL = "queryEndTime"
+        private val KST_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
     }
 }

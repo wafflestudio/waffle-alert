@@ -27,6 +27,7 @@ class DiscordNotificationAdapterTest {
                     "team-infra-alert" to "channel-2",
                     "siksha-app-alert" to "channel-3",
                     "siksha-infra-alert" to "channel-4",
+                    "oci-monitoring" to "channel-5",
                 )
         }
     private val routingPolicy =
@@ -141,6 +142,28 @@ class DiscordNotificationAdapterTest {
         adapter.notify(event)
 
         verify { adapter.sendMessage("channel-4", match { it.contains("RESOLVED") }) }
+    }
+
+    @Test
+    fun `OCI Monitoring alert에 실제 metric 조회 범위를 KST로 표시한다`() {
+        val event =
+            baseEvent(ruleName = "cpu-utilization-high", namespace = "OCI-DB").copy(
+                source = AlertSource.OCI_MONITORING,
+                labels =
+                    mapOf(
+                        "queryStartTime" to "2026-07-12T00:49:00Z",
+                        "queryEndTime" to "2026-07-12T01:05:00Z",
+                    ),
+            )
+
+        adapter.notify(event)
+
+        verify {
+            adapter.sendMessage(
+                "channel-5",
+                match { it.contains("조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST") },
+            )
+        }
     }
 
     private fun baseEvent(
