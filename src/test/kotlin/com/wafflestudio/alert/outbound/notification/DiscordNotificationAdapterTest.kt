@@ -44,6 +44,12 @@ class DiscordNotificationAdapterTest {
                                 app = "siksha-app-alert"
                                 infra = "siksha-infra-alert"
                             },
+                        // dev는 app 채널만 매핑한다(infra는 이번 범위 밖) - 실제 채널이
+                        // 아직 없어 discord.channel-ids에는 키를 안 넣은 상태를 재현한다.
+                        "siksha-dev" to
+                            TeamChannels().apply {
+                                app = "siksha-dev-app-alert"
+                            },
                     )
             },
         )
@@ -132,6 +138,27 @@ class DiscordNotificationAdapterTest {
         assertTrue(result)
         verify(exactly = 0) { lokiClient.fetchLogLines(any(), any()) }
         verify(exactly = 0) { adapter.sendMessage(any(), any()) }
+    }
+
+    @Test
+    fun `dev namespace는 app 채널 키로 라우팅되지만 채널 ID가 없으면 조용히 skip한다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-dev")
+        every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
+        every { lokiClient.grafanaExploreUrl(any(), any()) } returns null
+
+        val result = adapter.notify(event)
+
+        assertTrue(!result)
+        verify(exactly = 0) { adapter.sendMessage(any(), any()) }
+    }
+
+    @Test
+    fun `dev namespace는 infra 매핑이 없어 워크로드 alert는 소스 기본 채널로 폴백한다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-dev")
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-1", any()) }
     }
 
     @Test

@@ -50,6 +50,12 @@ alert:
     # namespace -> 팀의 discord.channel-ids 키. app은 Loki 기반 애플리케이션 에러 로그
     # (ApplicationErrorLog), infra는 Prometheus/K8s watch 등 워크로드 alert (RoutingPolicy,
     # ChannelType 참고). 매핑에 없는 namespace/channelType은 소스 기준 기본 채널로 폴백한다.
+    #
+    # dev namespace는 app 채널만 등록한다(팀 요청 - infra alert는 이번 범위 밖). 아직 실제
+    # Discord 채널을 안 만들어서 discord.channel-ids에 키를 안 넣었다 - channelId가
+    # 비어 있으면 DiscordNotificationAdapter.notify가 "channel not configured"로 skip하고
+    # 조용히 넘어간다(예외 없음). 채널이 만들어지면 discord.channel-ids에 <team>-dev-app-alert:
+    # <채널ID>만 추가하면 바로 라우팅된다.
     namespaces:
       waffle-alert-prod:
         app: team-infra-alert
@@ -60,24 +66,38 @@ alert:
       waffice-prod:
         app: waffice-app-alert
         infra: waffice-infra-alert
+      waffice-dev:
+        app: waffice-dev-app-alert
       wacruit-prod:
         app: wacruit-app-alert
         infra: wacruit-infra-alert
+      wacruit-dev:
+        app: wacruit-dev-app-alert
       snutt-prod:
         app: snutt-app-alert
         infra: snutt-infra-alert
+      snutt-dev:
+        app: snutt-dev-app-alert
       siksha-prod:
         app: siksha-app-alert
         infra: siksha-infra-alert
+      siksha-dev:
+        app: siksha-dev-app-alert
       allclear-prod:
         app: allclear-app-alert
         infra: allclear-infra-alert
+      allclear-dev:
+        app: allclear-dev-app-alert
       hangsha-prod:
         app: hangsha-app-alert
         infra: hangsha-infra-alert
+      hangsha-dev:
+        app: hangsha-dev-app-alert
       snuclear-prod:
         app: snuclear-app-alert
         infra: snuclear-infra-alert
+      snuclear-dev:
+        app: snuclear-dev-app-alert
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config
