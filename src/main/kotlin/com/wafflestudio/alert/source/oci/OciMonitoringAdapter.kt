@@ -11,6 +11,7 @@ import com.wafflestudio.alert.domain.model.MetricUnit
 import com.wafflestudio.alert.domain.model.ResourceMetricObservation
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.Date
 
 class OciMonitoringAdapter(
@@ -80,6 +81,7 @@ class OciMonitoringAdapter(
         filterByResourceType: Boolean,
     ): List<ResourceMetricObservation> {
         val endTime = clock.instant()
+        val startTime = endTime.minus(query.window)
         val mql = metricMql(metricName, query.dbSystemId, query.resolution, filterByResourceType)
         val response =
             monitoringClient.summarizeMetricsData(
@@ -91,7 +93,7 @@ class OciMonitoringAdapter(
                             .builder()
                             .namespace(MYSQL_NAMESPACE)
                             .query(mql)
-                            .startTime(Date.from(endTime.minus(query.window)))
+                            .startTime(Date.from(startTime))
                             .endTime(Date.from(endTime))
                             .resolution(query.resolution)
                             .build(),
@@ -105,6 +107,8 @@ class OciMonitoringAdapter(
                 metricName = metricName,
                 unit = unit,
                 filterByResourceType = filterByResourceType,
+                queryStartTime = startTime,
+                queryEndTime = endTime,
             )
         }
     }
@@ -115,6 +119,8 @@ class OciMonitoringAdapter(
         metricName: String,
         unit: MetricUnit,
         filterByResourceType: Boolean,
+        queryStartTime: Instant,
+        queryEndTime: Instant,
     ): ResourceMetricObservation? {
         val dimensions = metricData.dimensions.orEmpty()
         val resourceType = dimensions[RESOURCE_TYPE_DIMENSION]
@@ -165,6 +171,8 @@ class OciMonitoringAdapter(
                     put("namespace", metricData.namespace ?: MYSQL_NAMESPACE)
                     metricData.compartmentId?.let { put("compartmentId", it) }
                     put("region", region)
+                    put(QUERY_START_TIME_LABEL, queryStartTime.toString())
+                    put(QUERY_END_TIME_LABEL, queryEndTime.toString())
                 },
         )
     }
@@ -195,6 +203,8 @@ class OciMonitoringAdapter(
         private const val RESOURCE_ID_DIMENSION = "resourceId"
         private const val RESOURCE_NAME_DIMENSION = "resourceName"
         private const val RESOURCE_TYPE_DIMENSION = "resourceType"
+        private const val QUERY_START_TIME_LABEL = "queryStartTime"
+        private const val QUERY_END_TIME_LABEL = "queryEndTime"
     }
 }
 
