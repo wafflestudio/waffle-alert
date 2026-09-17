@@ -28,8 +28,8 @@ class OciCostEvaluator(
 
     fun evaluateSpike(daily: List<CostBucket>): AlertEvent? {
         val spike = props.spike
-        // 비용 정착 대기일 + 판단 대상 1일 + 직전 7일 baseline
-        val needed = spike.settleLagDays + 1 + 7
+        // 비용 정착 대기일 + 판단 대상 1일 + 비교 대상인 직전 1일
+        val needed = spike.settleLagDays + 2
 
         if (daily.size < needed) {
             log.warn("날짜 부족")
@@ -52,17 +52,11 @@ class OciCostEvaluator(
 
         val settled = recent.dropLast(spike.settleLagDays)
         val target = settled.last()
+        val previous = settled[settled.lastIndex - 1]
 
-        val baseline = settled.dropLast(1).takeLast(7)
+        if (previous.amount <= BigDecimal.ZERO || previous.amount < spike.minAverageAmount) return null
 
-        val avg =
-            baseline
-                .sumOf { it.amount }
-                .divide(BigDecimal(baseline.size), 4, RoundingMode.HALF_UP)
-
-        if (avg < spike.minAverageAmount) return null
-
-        val ratio = target.amount.divide(avg, 4, RoundingMode.HALF_UP)
+        val ratio = target.amount.divide(previous.amount, 4, RoundingMode.HALF_UP)
         val severity =
             when {
                 ratio >= spike.criticalMultiplier -> Severity.CRITICAL
@@ -74,7 +68,12 @@ class OciCostEvaluator(
         val isSgd = target.currency.equals("SGD", ignoreCase = true)
         val exchangeRate = if (isSgd) exchangeRateProvider?.getSgdToKrwRate() else null
         val targetKrw = if (isSgd && exchangeRate != null) " (약 ${exchangeRate.formatWon(target.amount)})" else ""
-        val avgKrw = if (isSgd && exchangeRate != null) " ${target.currency} (약 ${exchangeRate.formatWon(avg)})" else ""
+        val previousKrw =
+            if (isSgd && exchangeRate != null) {
+                " ${previous.currency} (약 ${exchangeRate.formatWon(previous.amount)})"
+            } else {
+                " ${previous.currency}"
+            }
         val rateSuffix = if (isSgd && exchangeRate != null) "\n\n환율: ${exchangeRate.formatSummary()}" else ""
 
         return AlertEvent(
@@ -86,7 +85,7 @@ class OciCostEvaluator(
             title = "OCI 일일 비용 급증",
             description =
                 "$day 비용 ${target.amount.setScale(2, RoundingMode.HALF_UP)} ${target.currency}$targetKrw " +
-                    "(직전 7일 평균 ${avg.setScale(2, RoundingMode.HALF_UP)}$avgKrw 대비 " +
+                    "(전일 ${previous.amount.setScale(2, RoundingMode.HALF_UP)}$previousKrw 대비 " +
                     "${ratio.setScale(2, RoundingMode.HALF_UP)}배)$rateSuffix",
             team = "infra",
         )

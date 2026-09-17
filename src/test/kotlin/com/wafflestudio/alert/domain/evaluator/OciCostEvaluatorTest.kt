@@ -27,10 +27,24 @@ class OciCostEvaluatorTest {
     }
 
     @Test
+    fun `스파이크는 직전 하루 비용과만 비교한다`() {
+        val daily =
+            listOf(
+                cost("2026-07-01", "100"),
+                cost("2026-07-02", "100"),
+                cost("2026-07-03", "1"),
+                cost("2026-07-04", "2"),
+                cost("2026-07-05", "1"),
+            )
+
+        assertNotNull(evaluator.evaluateSpike(daily))
+    }
+
+    @Test
     fun `날짜가 누락되면 스파이크 판단을 건너뛴다`() {
         val daily =
-            listOf(1, 2, 3, 4, 5, 6, 8, 9, 10).map { day ->
-                cost("2026-07-${day.toString().padStart(2, '0')}", if (day == 9) "20" else "1")
+            listOf(1, 2, 3, 4, 5, 6, 8, 10, 11).map { day ->
+                cost("2026-07-${day.toString().padStart(2, '0')}", if (day == 10) "20" else "1")
             }
 
         assertNull(evaluator.evaluateSpike(daily))
@@ -63,7 +77,7 @@ class OciCostEvaluatorTest {
         assertNotNull(event)
         val description = assertNotNull(event.description)
         kotlin.test.assertTrue(description.contains("20.00 SGD (약 21,160원)"))
-        kotlin.test.assertTrue(description.contains("1.00 SGD (약 1,058원)"))
+        kotlin.test.assertTrue(description.contains("전일 1.00 SGD (약 1,058원) 대비"))
         kotlin.test.assertTrue(description.endsWith("환율: 7월 8일, 1,058원"))
     }
 

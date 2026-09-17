@@ -11,7 +11,7 @@ class OciCostProperties {
 
     class Spike {
         var settleLagDays: Int = 1
-        var warningMultiplier: BigDecimal = BigDecimal("1.5")
+        var warningMultiplier: BigDecimal = BigDecimal("1.3")
         var criticalMultiplier: BigDecimal = BigDecimal("2.0")
         var minAverageAmount: BigDecimal = BigDecimal("0.5")
     }
