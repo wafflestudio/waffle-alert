@@ -30,20 +30,34 @@ discord:
     oci-monitoring: 1525123771420377200
     team-infra-alert: 1538228022673408001
     k8s-alert: 1532713920232554646
+    # waffice
     waffice-app-alert: 1545815162001424384
     waffice-infra-alert: 1546753138663362610
+    waffice-dev-app-alert: 1547620983878455377
+    # wacruit
     wacruit-app-alert: 1545815197254688899
     wacruit-infra-alert: 1546753479157227540
+    wacruit-dev-app-alert: 1547620943780778156
+    # snutt
     snutt-app-alert: 1545815248664133723
     snutt-infra-alert: 1546753835039457370
+    snutt-dev-app-alert: 1547621022004412466
+    # siksha
     siksha-app-alert: 1545815282054860861
     siksha-infra-alert: 1546753931768758322
+    siksha-dev-app-alert: 1547621058058919966
+    # allclear
     allclear-app-alert: 1545815310320537640
     allclear-infra-alert: 1546754731605627002
+    allclear-dev-app-alert: 1547621094763008000
+    # hangsha
     hangsha-app-alert: 1545815417153519716
     hangsha-infra-alert: 1546754949550047252
+    hangsha-dev-app-alert: 1547621398548058144
+    # snuclear
     snuclear-app-alert: 1546784401713660045
     snuclear-infra-alert: 1546784422907482233
+    snuclear-dev-app-alert: 1547621129101774868
 
 alert:
   team-mapping:
@@ -51,11 +65,8 @@ alert:
     # (ApplicationErrorLog), infra는 Prometheus/K8s watch 등 워크로드 alert (RoutingPolicy,
     # ChannelType 참고). 매핑에 없는 namespace/channelType은 소스 기준 기본 채널로 폴백한다.
     #
-    # dev namespace는 app 채널만 등록한다(팀 요청 - infra alert는 이번 범위 밖). 아직 실제
-    # Discord 채널을 안 만들어서 discord.channel-ids에 키를 안 넣었다 - channelId가
-    # 비어 있으면 DiscordNotificationAdapter.notify가 "channel not configured"로 skip하고
-    # 조용히 넘어간다(예외 없음). 채널이 만들어지면 discord.channel-ids에 <team>-dev-app-alert:
-    # <채널ID>만 추가하면 바로 라우팅된다.
+    # dev namespace는 app 채널만 등록한다(팀 요청 - infra alert는 이번 범위 밖). infra 매핑이
+    # 없는 dev namespace의 워크로드 alert는 소스 기준 기본 채널로 폴백한다.
     namespaces:
       waffle-alert-prod:
         app: team-infra-alert
