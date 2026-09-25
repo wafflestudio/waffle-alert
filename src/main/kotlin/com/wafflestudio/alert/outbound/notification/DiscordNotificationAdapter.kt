@@ -1,11 +1,12 @@
 package com.wafflestudio.alert.outbound.notification
 
 import com.wafflestudio.alert.config.DiscordProperties
+import com.wafflestudio.alert.config.MessageFormatProperties
+import com.wafflestudio.alert.config.MetaField
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.outbound.notification.routing.ChannelType
-import com.wafflestudio.alert.outbound.notification.routing.DiscordMentionRole
 import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
 import com.wafflestudio.alert.source.loki.LokiClient
 import org.slf4j.LoggerFactory
@@ -21,12 +22,15 @@ class DiscordNotificationAdapter(
     private val discordProperties: DiscordProperties,
     private val lokiClient: LokiClient,
     private val routingPolicy: RoutingPolicy,
+    private val messageFormatProperties: MessageFormatProperties,
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
     override fun notify(event: AlertEvent): Boolean {
-        if (event.isResolvedApplicationErrorLog) {
-            log.debug("Skip ApplicationErrorLog RESOLVED (fingerprint={})", event.fingerprint)
+        // 해소 알림은 보내지 않는다. Alertmanager의 send_resolved도 꺼져 있지만
+        // (waffle-world-oci argocd/prometheus/values.yaml) 설정이 되돌아가도 여기서 막는다.
+        if (event.status == AlertStatus.RESOLVED) {
+            log.debug("Skip RESOLVED (fingerprint={})", event.fingerprint)
             return true
         }
 
@@ -65,17 +69,6 @@ class DiscordNotificationAdapter(
             AlertSource.K8S -> "k8s-alert"
         }
 
-    /**
-     * team 문자열 -> 멘션할 Discord role 고정 매핑. 매핑 안 되는 team은 멘션 없이 보낸다.
-     *
-     * TODO : 각 팀별 roleID 넣어놔야함
-     */
-    private fun mentionRoleOf(team: String?): DiscordMentionRole? =
-        when (team) {
-            "infra" -> DiscordMentionRole.INFRA
-            else -> null
-        }
-
     /** @return 전송 성공 여부. 예외는 여기서 삼킨다 - 호출자(워처/스케줄러)가 알림 실패로 죽으면 안 된다. */
     fun sendMessage(
         channelId: String,
@@ -94,45 +87,50 @@ class DiscordNotificationAdapter(
             false
         }
 
+    /**
+     * 메시지는 굵은 title -> 메타 줄(설정에서 켠 필드만) -> description -> 추가 첨부 순서다.
+     * namespace와 리소스 이름은 title에 들어 있어야 한다 (AlertEvent.title 참고).
+     */
     private fun formatMessage(event: AlertEvent): String {
-        val emoji =
-            when (event.status) {
-                AlertStatus.FIRING -> "🔥"
-                AlertStatus.RESOLVED -> "✅"
-                AlertStatus.REPEATED -> "🔁"
-            }
-        val mentionRole = mentionRoleOf(event.team)
-        if (mentionRole == null && event.team != null) {
-            log.warn("No Discord mention role mapped for team={}, sending without mention", event.team)
-        }
-
-        val meta =
-            buildList {
-                // ApplicationErrorLog rule은 로그 내용과 무관하게 severity를 warning으로
-                // 고정해서 보낸다(waffle-world-oci/argocd/loki/resources.yaml) - 실제 의미가
-                // 없는 값이라 이 alert에서는 표시하지 않는다.
-                if (!event.isApplicationErrorLog) add("severity: ${event.severity}")
-                event.service?.let { add("service: $it") }
-                event.resourceName?.let { add("resource: $it") }
-            }
-
         val base =
             buildString {
-                mentionRole?.let { append("${it.mention} ") }
-                append("$emoji [${event.status}] ${event.title}")
-                append("\n" + meta.joinToString(" · "))
-                event.description?.let { append("\n$it") }
+                append("**${event.title.escapeMarkdown()}**")
+                metaLine(event)?.let { append("\n$it") }
+                event.description?.takeUnless { it.isBlank() }?.let { append("\n$it") }
                 event.queryWindowLine()?.let { append("\n$it") }
             }
 
-        // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 컨텍스트를
-        // 붙인다. Prometheus metric/OCI alert는 ruleName이 달라 기존 메시지 포맷 그대로
-        // 나간다 (하위호환).
+        // Loki 기반 alert(waffle-world-oci의 ApplicationErrorLog rule)만 로그 원문과
+        // Grafana 링크를 붙인다.
         if (!event.isApplicationErrorLog) {
             return base
         }
         return base + lokiContextSuffix(event)
     }
+
+    /**
+     * alert.message.meta-fields에서 켠 필드만 `severity: X · service: Y` 형태로 이어 붙인다.
+     * 켠 필드가 없거나 값이 모두 비어 있으면 null - 메타 줄 자체를 넣지 않는다.
+     */
+    private fun metaLine(event: AlertEvent): String? =
+        messageFormatProperties
+            .fieldsFor(event.source)
+            .distinct()
+            .sorted()
+            .mapNotNull { field ->
+                when (field) {
+                    MetaField.SEVERITY -> "severity: ${event.severity}"
+                    MetaField.SERVICE -> event.service?.let { "service: $it" }
+                    MetaField.RESOURCE -> event.resourceName?.let { "resource: $it" }
+                }
+            }.takeIf { it.isNotEmpty() }
+            ?.joinToString(" · ")
+
+    /**
+     * title을 `**`로 감싸기 전에 Discord 마크다운 문자를 이스케이프한다. Prometheus/Loki summary에는
+     * 라벨 값이 그대로 들어오므로, 거기에 `*`나 `_`가 섞여도 굵게 표시가 깨지지 않게 한다.
+     */
+    private fun String.escapeMarkdown(): String = replace(MARKDOWN_SPECIAL_CHARS) { "\\${it.value}" }
 
     private fun AlertEvent.queryWindowLine(): String? {
         if (source != AlertSource.OCI_MONITORING) return null
@@ -164,15 +162,6 @@ class DiscordNotificationAdapter(
     private val AlertEvent.isApplicationErrorLog: Boolean
         get() = ruleName == LOKI_ERROR_LOG_RULE_NAME
 
-    /**
-     * ApplicationErrorLog는 "최근 2분간 에러 로그가 있었다"는 순간적 이벤트를 상태 기반
-     * alerting(FIRING/RESOLVED)에 끼워 넣은 것이라, RESOLVED가 "장애 해소"가 아니라
-     * "최근 2분간 에러가 없었다"는 의미밖에 없다 - 에러가 산발적으로만 찍히는 pod는
-     * FIRING/RESOLVED가 몇 초~몇 분 간격으로 계속 반복돼 노이즈만 된다.
-     */
-    private val AlertEvent.isResolvedApplicationErrorLog: Boolean
-        get() = isApplicationErrorLog && status == AlertStatus.RESOLVED
-
     private companion object {
         // waffle-world-oci argocd/loki/resources.yaml의 alert 이름과 반드시 일치해야 한다.
         const val LOKI_ERROR_LOG_RULE_NAME = "ApplicationErrorLog"
@@ -180,6 +169,7 @@ class DiscordNotificationAdapter(
         const val MAX_LOG_PREVIEW_CHARS = 1200
         private const val QUERY_START_TIME_LABEL = "queryStartTime"
         private const val QUERY_END_TIME_LABEL = "queryEndTime"
+        private val MARKDOWN_SPECIAL_CHARS = Regex("""[\\*_~`|]""")
         private val KST_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("Asia/Seoul"))
     }
 }

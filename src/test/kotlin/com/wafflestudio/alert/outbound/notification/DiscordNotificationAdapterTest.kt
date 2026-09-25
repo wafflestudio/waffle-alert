@@ -1,6 +1,8 @@
 package com.wafflestudio.alert.outbound.notification
 
 import com.wafflestudio.alert.config.DiscordProperties
+import com.wafflestudio.alert.config.MessageFormatProperties
+import com.wafflestudio.alert.config.MetaField
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
@@ -11,8 +13,10 @@ import com.wafflestudio.alert.outbound.notification.routing.TeamMappingConfig
 import com.wafflestudio.alert.source.loki.LokiClient
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.web.client.RestClient
@@ -28,6 +32,7 @@ class DiscordNotificationAdapterTest {
                     "siksha-app-alert" to "channel-3",
                     "siksha-infra-alert" to "channel-4",
                     "oci-monitoring" to "channel-5",
+                    "oci-cost" to "channel-6",
                 )
         }
     private val routingPolicy =
@@ -54,10 +59,27 @@ class DiscordNotificationAdapterTest {
                     )
             },
         )
+    private val messageFormatProperties =
+        MessageFormatProperties().apply {
+            sources =
+                mapOf(
+                    AlertSource.OCI_MONITORING to listOf(MetaField.SEVERITY),
+                    AlertSource.OCI_COST to listOf(MetaField.SEVERITY),
+                )
+        }
     private val lokiClient = mockk<LokiClient>()
+    private val sentContent = slot<String>()
     private val adapter =
-        spyk(DiscordNotificationAdapter(mockk<RestClient>(relaxed = true), discordProperties, lokiClient, routingPolicy)) {
-            every { sendMessage(any(), any()) } returns true
+        spyk(
+            DiscordNotificationAdapter(
+                mockk<RestClient>(relaxed = true),
+                discordProperties,
+                lokiClient,
+                routingPolicy,
+                messageFormatProperties,
+            ),
+        ) {
+            every { sendMessage(any(), capture(sentContent)) } returns true
         }
 
     @Test
@@ -103,23 +125,104 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `ApplicationErrorLog는 severity가 항상 warning 고정값이라 메시지에 표시하지 않는다`() {
-        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod")
-        every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
-        every { lokiClient.grafanaExploreUrl(any(), any()) } returns null
+    fun `메시지는 굵은 title과 description만으로 이뤄지고 이모지, status, 메타 줄은 붙지 않는다`() {
+        val event =
+            baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(
+                title = "Pod siksha-prod/siksha-api-abc near memory limit",
+                description = "siksha-prod/siksha-api-abc memory at 96.3% of limit for 30m.",
+                resourceName = "siksha-api-abc",
+            )
 
         adapter.notify(event)
 
-        verify { adapter.sendMessage("channel-3", match { !it.contains("severity") }) }
+        assertEquals(
+            "**Pod siksha-prod/siksha-api-abc near memory limit**\n" +
+                "siksha-prod/siksha-api-abc memory at 96.3% of limit for 30m.",
+            sentContent.captured,
+        )
     }
 
     @Test
-    fun `워크로드 alert는 severity를 그대로 표시한다`() {
-        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod")
+    fun `team이 있어도 멘션을 붙이지 않는다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(team = "infra")
 
         adapter.notify(event)
 
-        verify { adapter.sendMessage("channel-4", match { it.contains("severity: WARNING") }) }
+        assertTrue(sentContent.captured.startsWith("**"))
+        assertTrue(!sentContent.captured.contains("<@&"))
+    }
+
+    @Test
+    fun `description이 비어 있으면 빈 줄 없이 다음 요소가 이어진다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod").copy(description = "")
+        every { lokiClient.fetchLogLines(any(), any()) } returns listOf("ERROR something broke")
+        every { lokiClient.grafanaExploreUrl(any(), any()) } returns "https://grafana.wafflestudio.com/explore?x"
+
+        adapter.notify(event)
+
+        assertEquals(
+            "**siksha-prod error log detected**\n" +
+                "```\nERROR something broke\n```\n" +
+                "🔗 [Grafana에서 전체 로그 보기](https://grafana.wafflestudio.com/explore?x)",
+            sentContent.captured,
+        )
+    }
+
+    @Test
+    fun `title의 마크다운 문자는 이스케이프해서 굵게 표시가 깨지지 않는다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(title = "a*b_c `d`")
+
+        adapter.notify(event)
+
+        assertEquals("**a\\*b\\_c \\`d\\`**", sentContent.captured)
+    }
+
+    @Test
+    fun `OCI Cost는 설정대로 title 다음 줄에 severity를 보여준다`() {
+        val event =
+            baseEvent(ruleName = "oci-cost-spike", namespace = "unused").copy(
+                source = AlertSource.OCI_COST,
+                severity = Severity.CRITICAL,
+                title = "OCI 일일 비용 급증",
+                description = "2026-09-23 비용 3.00 SGD (전일 1.00 SGD 대비 3.00배)",
+                service = null,
+                team = "infra",
+            )
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-6", any()) }
+        assertEquals(
+            "**OCI 일일 비용 급증**\n" +
+                "severity: CRITICAL\n" +
+                "2026-09-23 비용 3.00 SGD (전일 1.00 SGD 대비 3.00배)",
+            sentContent.captured,
+        )
+    }
+
+    @Test
+    fun `메타 필드는 설정 순서와 상관없이 severity, service, resource 순서로 보여준다`() {
+        messageFormatProperties.sources =
+            mapOf(AlertSource.ALERTMANAGER to listOf(MetaField.RESOURCE, MetaField.SEVERITY, MetaField.SERVICE))
+        val event =
+            baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(
+                title = "t",
+                resourceName = "siksha-api-abc",
+            )
+
+        adapter.notify(event)
+
+        assertEquals("**t**\nseverity: WARNING · service: siksha-prod · resource: siksha-api-abc", sentContent.captured)
+    }
+
+    @Test
+    fun `켠 메타 필드의 값이 모두 비어 있으면 메타 줄을 넣지 않는다`() {
+        messageFormatProperties.sources = mapOf(AlertSource.ALERTMANAGER to listOf(MetaField.RESOURCE))
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(title = "t")
+
+        adapter.notify(event)
+
+        assertEquals("**t**", sentContent.captured)
     }
 
     @Test
@@ -162,6 +265,16 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
+    fun `워크로드 alert의 RESOLVED도 전송하지 않는다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod", status = AlertStatus.RESOLVED)
+
+        val result = adapter.notify(event)
+
+        assertTrue(result)
+        verify(exactly = 0) { adapter.sendMessage(any(), any()) }
+    }
+
+    @Test
     fun `dev namespace는 app 채널 키로 라우팅되지만 채널 ID가 없으면 조용히 skip한다`() {
         val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-dev")
         every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
@@ -183,19 +296,13 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `워크로드 alert의 RESOLVED는 그대로 전송한다`() {
-        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod", status = AlertStatus.RESOLVED)
-
-        adapter.notify(event)
-
-        verify { adapter.sendMessage("channel-4", match { it.contains("RESOLVED") }) }
-    }
-
-    @Test
-    fun `OCI Monitoring alert에 실제 metric 조회 범위를 KST로 표시한다`() {
+    fun `OCI Monitoring alert는 severity와 실제 metric 조회 범위를 KST로 표시한다`() {
         val event =
             baseEvent(ruleName = "cpu-utilization-high", namespace = "OCI-DB").copy(
                 source = AlertSource.OCI_MONITORING,
+                title = "MySQL CPU utilization high",
+                description = "wafflestudio-mysql CPU utilization is 85.3% (threshold: 80.0%).",
+                resourceName = "wafflestudio-mysql",
                 labels =
                     mapOf(
                         "queryStartTime" to "2026-07-12T00:49:00Z",
@@ -205,12 +312,14 @@ class DiscordNotificationAdapterTest {
 
         adapter.notify(event)
 
-        verify {
-            adapter.sendMessage(
-                "channel-5",
-                match { it.contains("조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST") },
-            )
-        }
+        verify { adapter.sendMessage("channel-5", any()) }
+        assertEquals(
+            "**MySQL CPU utilization high**\n" +
+                "severity: WARNING\n" +
+                "wafflestudio-mysql CPU utilization is 85.3% (threshold: 80.0%).\n" +
+                "조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST",
+            sentContent.captured,
+        )
     }
 
     private fun baseEvent(

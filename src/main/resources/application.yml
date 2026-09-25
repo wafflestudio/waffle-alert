@@ -109,6 +109,14 @@ alert:
         infra: snuclear-infra-alert
       snuclear-dev:
         app: snuclear-dev-app-alert
+  message:
+    # Discord 메시지에서 title 바로 아래 메타 줄에 보여줄 필드 (severity, service, resource).
+    # 기본은 아무것도 안 보여주고, 필요한 source만 켠다 (MessageFormatProperties 참고).
+    meta-fields:
+      default: []
+      sources:
+        oci-monitoring: [severity]
+        oci-cost: [severity]        # 일일 비용 급증, 주간 요약 모두
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config

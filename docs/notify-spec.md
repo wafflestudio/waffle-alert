@@ -61,17 +61,20 @@ interface NotificationPort {
 ```
 
 - `AlertIncident` 파라미터 제거. `AlertEvent` 하나만 받는다.
-- 메시지 포맷팅(`formatMessage`)은 어댑터 내부에서 `AlertEvent` 필드로 조립 (source/status/severity/title/service/resource 등).
+- 메시지 포맷팅(`formatMessage`)은 어댑터 내부에서 `AlertEvent` 필드로 조립한다. 순서는 굵은 `title` → 메타 줄 → `description` → 추가 첨부(Loki 로그·Grafana 링크, OCI 조회 범위).
+  - 메타 줄(`severity`/`service`/`resource`)은 `alert.message.meta-fields`에서 켠 필드만 보인다. 기본은 모두 꺼져 있고 `OCI_MONITORING`, `OCI_COST`만 `severity`를 켠다.
+  - 이모지, status 텍스트, 멘션은 붙이지 않는다. `RESOLVED`는 보내지 않는다.
+  - 그래서 `title`에 namespace와 리소스 이름이 들어 있어야 한다.
 
-## 4. 채널 라우팅 & 멘션 — 공통 담당 (준병)
+## 4. 채널 라우팅 — 공통 담당 (준병)
 
-`DiscordNotificationAdapter` 내부 고정 매핑으로 처리. 팀원은 `source`/`team` 필드만 정확히 채우면 된다.
+`DiscordNotificationAdapter` 내부 고정 매핑으로 처리. 팀원은 `source` 필드만 정확히 채우면 된다.
 
 - **채널**: `event.source`를 `channelKeyOf(source)`로 `discord.channel-ids`(yml)의 키 문자열로 변환 → 해당 채널 ID로 전송.
   - `ALERTMANAGER` → `prometheus-alert`
   - `OCI_COST` → `oci-cost`
   - `OCI_MONITORING` → `oci-monitoring`
-- **멘션**: `event.team` 문자열을 `mentionRoleOf(team)`으로 `DiscordMentionRole` enum과 매핑 → 매핑되면 메시지 앞에 `<@&roleId>` 멘션을 붙인다. 매핑 안 되는 team이면 멘션 없이 보내고 경고 로그만 남긴다.
+- **멘션**: 2026-09 메시지 포맷 정리 때 제거했다(`docs/discord-message-format-plan.md`). `event.team` 필드는 남아 있지만 읽는 곳은 없다.
 
 ## 5. 팀원 작업 위치 (패키지)
 
