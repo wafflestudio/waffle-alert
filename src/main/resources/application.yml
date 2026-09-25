@@ -30,26 +30,43 @@ discord:
     oci-monitoring: 1525123771420377200
     team-infra-alert: 1538228022673408001
     k8s-alert: 1532713920232554646
+    # waffice
     waffice-app-alert: 1545815162001424384
     waffice-infra-alert: 1546753138663362610
+    waffice-dev-app-alert: 1547620983878455377
+    # wacruit
     wacruit-app-alert: 1545815197254688899
     wacruit-infra-alert: 1546753479157227540
+    wacruit-dev-app-alert: 1547620943780778156
+    # snutt
     snutt-app-alert: 1545815248664133723
     snutt-infra-alert: 1546753835039457370
+    snutt-dev-app-alert: 1547621022004412466
+    # siksha
     siksha-app-alert: 1545815282054860861
     siksha-infra-alert: 1546753931768758322
+    siksha-dev-app-alert: 1547621058058919966
+    # allclear
     allclear-app-alert: 1545815310320537640
     allclear-infra-alert: 1546754731605627002
+    allclear-dev-app-alert: 1547621094763008000
+    # hangsha
     hangsha-app-alert: 1545815417153519716
     hangsha-infra-alert: 1546754949550047252
+    hangsha-dev-app-alert: 1547621398548058144
+    # snuclear
     snuclear-app-alert: 1546784401713660045
     snuclear-infra-alert: 1546784422907482233
+    snuclear-dev-app-alert: 1547621129101774868
 
 alert:
   team-mapping:
     # namespace -> 팀의 discord.channel-ids 키. app은 Loki 기반 애플리케이션 에러 로그
     # (ApplicationErrorLog), infra는 Prometheus/K8s watch 등 워크로드 alert (RoutingPolicy,
     # ChannelType 참고). 매핑에 없는 namespace/channelType은 소스 기준 기본 채널로 폴백한다.
+    #
+    # dev namespace는 app 채널만 등록한다(팀 요청 - infra alert는 이번 범위 밖). infra 매핑이
+    # 없는 dev namespace의 워크로드 alert는 소스 기준 기본 채널로 폴백한다.
     namespaces:
       waffle-alert-prod:
         app: team-infra-alert
@@ -60,24 +77,38 @@ alert:
       waffice-prod:
         app: waffice-app-alert
         infra: waffice-infra-alert
+      waffice-dev:
+        app: waffice-dev-app-alert
       wacruit-prod:
         app: wacruit-app-alert
         infra: wacruit-infra-alert
+      wacruit-dev:
+        app: wacruit-dev-app-alert
       snutt-prod:
         app: snutt-app-alert
         infra: snutt-infra-alert
+      snutt-dev:
+        app: snutt-dev-app-alert
       siksha-prod:
         app: siksha-app-alert
         infra: siksha-infra-alert
+      siksha-dev:
+        app: siksha-dev-app-alert
       allclear-prod:
         app: allclear-app-alert
         infra: allclear-infra-alert
+      allclear-dev:
+        app: allclear-dev-app-alert
       hangsha-prod:
         app: hangsha-app-alert
         infra: hangsha-infra-alert
+      hangsha-dev:
+        app: hangsha-dev-app-alert
       snuclear-prod:
         app: snuclear-app-alert
         infra: snuclear-infra-alert
+      snuclear-dev:
+        app: snuclear-dev-app-alert
   oci:
     auth-type: config_file          # local 기본. prod 프로파일에서 instance_principal로 오버라이드
     config-file-path: ~/.oci/config
