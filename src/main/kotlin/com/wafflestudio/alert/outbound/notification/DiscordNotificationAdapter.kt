@@ -108,7 +108,10 @@ class DiscordNotificationAdapter(
 
         val meta =
             buildList {
-                add("severity: ${event.severity}")
+                // ApplicationErrorLog rule은 로그 내용과 무관하게 severity를 warning으로
+                // 고정해서 보낸다(waffle-world-oci/argocd/loki/resources.yaml) - 실제 의미가
+                // 없는 값이라 이 alert에서는 표시하지 않는다.
+                if (!event.isApplicationErrorLog) add("severity: ${event.severity}")
                 event.service?.let { add("service: $it") }
                 event.resourceName?.let { add("resource: $it") }
             }
