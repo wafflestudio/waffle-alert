@@ -143,7 +143,9 @@ alert:
     watch-timeout: 5m         # 이 시간마다 API 서버가 커넥션을 정상 종료 -> 재접속
     connect-timeout: 5s       # watch에는 read timeout을 두지 않는다
     api-read-timeout: 10s     # watch가 아닌 일반 요청용
-    max-alerts-per-pod: 3     # 같은 파드에 최대 3회
+    # 같은 파드에 1회. 알림 후 alert-count annotation을 patch하면 그 자체가 MODIFIED 이벤트라
+    # 상한까지 곧바로 연달아 나간다 (PodAlertCountStore 참고). 3이면 같은 알림이 3번 찍힌다.
+    max-alerts-per-pod: 1
   loki:
     # 클러스터 내부 서비스 주소. local 프로파일에서는 `kubectl port-forward svc/loki 3100:3100`으로
     # 우회 접근한다 (docs/architecture.md의 "로컬에서 각 source 테스트하는 법" 패턴).

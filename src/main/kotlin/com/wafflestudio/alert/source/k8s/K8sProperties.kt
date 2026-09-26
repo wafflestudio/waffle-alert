@@ -38,8 +38,11 @@ class K8sProperties {
     /** watch가 아닌 일반 요청용. watch 쪽과 달리 반드시 걸어야 한다 ([K8sClientConfig] 참고). */
     var apiReadTimeout: Duration = Duration.ofSeconds(10)
 
-    /** 실패한 파드는 몇 초마다 이벤트를 뿜으므로 상한이 없으면 알림이 폭발한다. [PodAlertCountStore] 참고. */
-    var maxAlertsPerPod: Int = 3
+    /**
+     * 실패한 파드는 몇 초마다 이벤트를 뿜으므로 상한이 없으면 알림이 폭발한다. [PodAlertCountStore] 참고.
+     * 카운터를 기록하는 annotation patch도 MODIFIED 이벤트를 만들어서, 상한만큼 곧바로 연달아 나간다.
+     */
+    var maxAlertsPerPod: Int = 1
 
     fun isEnabled(kind: K8sWatchKind): Boolean =
         when (kind) {
