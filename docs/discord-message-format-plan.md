@@ -128,7 +128,7 @@ private fun metaLine(event: AlertEvent): String? =
 
 ## 4. 작업 목록
 
-### 1단계: waffle-world-oci (먼저 배포)
+### 1단계: waffle-world-oci
 
 | # | 작업 | 파일 |
 | --- | --- | --- |
@@ -136,8 +136,9 @@ private fun metaLine(event: AlertEvent): String? =
 | 1-2 | Loki summary를 `Error log detected in {{ $labels.namespace }}/{{ $labels.pod }}`로 변경. 지금 title은 `ns/app`이라 pod 이름이 없다 | `argocd/loki/resources.yaml` |
 | 1-3 | Loki `description` annotation 삭제. 매퍼가 `null`로 받고 어댑터가 그 줄을 건너뛴다 | `argocd/loki/resources.yaml` |
 
-1-2와 1-3은 waffle-alert 배포보다 **먼저** 반영되어야 한다. 순서가 바뀌면 그 사이의 app 알림에는
-메타 줄도 description도 없어서 pod 정보가 전혀 없다. 1-1은 순서와 상관없다.
+두 레포의 배포 순서는 상관없다. waffle-alert가 먼저 나가면 Loki 알림에 기존 description
+(`ns/pod에서 에러 로그가 감지됨.`)이 남아 있어 pod 이름이 보이고, waffle-world-oci가 먼저 나가면
+기존 메타 줄의 `resource:`와 새 title에 pod 이름이 들어 있다.
 
 ### 2단계: waffle-alert
 
@@ -173,7 +174,10 @@ private fun metaLine(event: AlertEvent): String? =
 
 ## 5. 배포 순서
 
-1. waffle-world-oci PR 머지 → ArgoCD가 prometheus, loki를 sync했는지 확인
+순서는 상관없다(4장 참고).
+
+1. waffle-world-oci PR 머지 → ArgoCD가 prometheus, loki를 sync했는지 확인. Alertmanager 설정은
+   config-reloader가, Loki rule은 k8s-sidecar와 ruler poll(1분)이 반영하므로 재시작은 필요 없다.
 2. waffle-alert PR 머지 → Deploy-prod 워크플로우가 이미지 빌드, `kustomization.yaml` 태그 업데이트,
    ArgoCD sync까지 자동으로 진행
 3. 채널별 실제 메시지 확인
