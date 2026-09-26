@@ -194,7 +194,7 @@ private fun metaLine(event: AlertEvent): String? =
 ```
 2026-09-25 14:05:01 ERROR c.w.s.EvController - NullPointerException: ...
 ```
-🔗 [Grafana에서 전체 로그 보기](https://grafana.wafflestudio.com/explore?...)
+🔗 [View full logs in Grafana](https://grafana.wafflestudio.com/explore?...)
 ````
 
 ### 서비스팀 infra 채널 (`*-infra-alert`)
@@ -330,7 +330,7 @@ description이 같은 내용을 반복하는 곳이다.
   같은 공통 형식을 정할지 검토.
 - **K8s Pod 실패 title에 reason 넣기**: `ErrImagePull`, `CrashLoopBackOff` 같은 실패 사유가 지금은
   코드블록 안에만 있다. title에 넣으면 코드블록을 펼치지 않아도 원인 종류를 알 수 있다.
-- **한국어/영어 문구 통일**: `Grafana에서 전체 로그 보기`, `조회 범위`, OCI 비용 알림 문구,
+- **한국어/영어 문구 통일**: `조회 범위`, OCI 비용 알림 문구,
   K8s의 `... (생략)`.
 - **CronJob 실패 중복 알림**: CronJob이 실패하면 Pod Failed(파드당 최대 3회)와 Job Failed가 함께
   와서 같은 장애가 여러 번 쌓인다.

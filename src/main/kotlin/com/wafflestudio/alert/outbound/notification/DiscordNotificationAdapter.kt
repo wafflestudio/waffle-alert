@@ -154,7 +154,7 @@ class DiscordNotificationAdapter(
                 val preview = logLines.take(LOG_PREVIEW_LINES).joinToString("\n").take(MAX_LOG_PREVIEW_CHARS)
                 append("\n```\n$preview\n```")
             }
-            exploreUrl?.let { append("\n🔗 [Grafana에서 전체 로그 보기]($it)") }
+            exploreUrl?.let { append("\n🔗 [View full logs in Grafana]($it)") }
         }
     }
 

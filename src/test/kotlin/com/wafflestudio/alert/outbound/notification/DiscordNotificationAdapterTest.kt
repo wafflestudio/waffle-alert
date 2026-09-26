@@ -163,7 +163,7 @@ class DiscordNotificationAdapterTest {
         assertEquals(
             "**siksha-prod error log detected**\n" +
                 "```\nERROR something broke\n```\n" +
-                "🔗 [Grafana에서 전체 로그 보기](https://grafana.wafflestudio.com/explore?x)",
+                "🔗 [View full logs in Grafana](https://grafana.wafflestudio.com/explore?x)",
             sentContent.captured,
         )
     }
@@ -237,7 +237,7 @@ class DiscordNotificationAdapterTest {
         verify {
             adapter.sendMessage(
                 "channel-3",
-                match { !it.contains("```") && it.contains("Grafana에서 전체 로그 보기") },
+                match { !it.contains("```") && it.contains("View full logs in Grafana") },
             )
         }
     }
