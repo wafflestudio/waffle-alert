@@ -26,7 +26,7 @@ severity: X · service: {ns} · resource: {name}
 ## 2. 새 메시지 규약
 
 ```
-**{title}**          ← 굵게. namespace와 리소스 정보를 title에 넣는다
+{title}              ← namespace와 리소스 정보를 title에 넣는다
 {메타 줄}            ← 설정에서 켠 필드만 표시. 기본은 모두 꺼서 줄 자체가 없다
 {description}        ← null이거나 비어 있으면 생략
 {추가 첨부}          ← Loki 로그와 Grafana 링크, OCI 조회 범위 (지금과 동일)
@@ -45,16 +45,15 @@ severity: X · service: {ns} · resource: {name}
 
 ### title 규칙
 
-title은 Discord에서 가장 먼저, 굵게 보이는 줄이다. **어느 namespace의 어떤 리소스에서 무슨 일이
+title은 Discord에서 가장 먼저 보이는 줄이다. **어느 namespace의 어떤 리소스에서 무슨 일이
 일어났는지 title만 봐도 알 수 있어야 한다.** 메타 줄의 `service`, `resource`를 기본으로 끄기
 때문에, 이 정보를 title에 넣지 않으면 메시지에서 사라진다.
 
-### title 굵게 표시
+### title 서식
 
-`**{title}**`로 감싼다. title에 Discord 마크다운 문자(`*`, `_`, `~`, `` ` ``, `|`)가 들어가면
-굵게 표시가 깨지거나 엉뚱하게 서식이 적용되므로, 감싸기 전에 앞에 `\`를 붙여 이스케이프한다.
-지금 title에는 이런 문자가 거의 없지만(k8s 리소스 이름에는 `_`가 없다), Prometheus/Loki의
-summary는 라벨 값이 그대로 들어가는 곳이라 방어해 둔다.
+처음에는 title을 `**{title}**`로 굵게 표시했으나, 배포 후 확인하고 2026-09-26에 뺐다. 서식 없이
+그대로 보낸다. title에 Discord 마크다운 문자(`*`, `_`, `~`, `` ` ``, `|`)가 들어가면 기울임이나
+굵게 같은 서식이 엉뚱하게 적용되므로, 앞에 `\`를 붙여 이스케이프하는 것은 유지한다.
 
 ## 3. 메타 필드 설정
 
@@ -103,7 +102,7 @@ Spring Boot는 enum을 느슨하게 바인딩하므로(대소문자, `-`/`_` 무
 private fun formatMessage(event: AlertEvent): String {
     val base =
         buildString {
-            append("**${event.title.escapeMarkdown()}**")
+            append(event.title.escapeMarkdown())
             metaLine(event)?.let { append("\n$it") }
             event.description?.takeUnless { it.isBlank() }?.let { append("\n$it") }
             event.queryWindowLine()?.let { append("\n$it") }
@@ -147,7 +146,7 @@ private fun metaLine(event: AlertEvent): String? =
 | 2-1 | 이모지와 `[STATUS]` 삭제 (`emoji` 변수와 `when` 문, 🔁 포함). `AlertStatus` enum은 유지 | `DiscordNotificationAdapter.formatMessage` |
 | 2-2 | 멘션 삭제: `mentionRoleOf`, `DiscordMentionRole.kt`. `AlertEvent.team` 필드는 모델 필드라 유지 | `DiscordNotificationAdapter`, `routing/DiscordMentionRole.kt` |
 | 2-3 | `MetaField` enum과 `MessageFormatProperties` 추가 | `config/` |
-| 2-4 | `formatMessage` 재구성: 굵은 title → 메타 줄 → description(빈 값 생략) → 첨부. PR #21의 Loki 전용 severity 분기 삭제 | `DiscordNotificationAdapter.formatMessage` |
+| 2-4 | `formatMessage` 재구성: title → 메타 줄 → description(빈 값 생략) → 첨부. PR #21의 Loki 전용 severity 분기 삭제 | `DiscordNotificationAdapter.formatMessage` |
 | 2-5 | title 마크다운 이스케이프 함수 추가 | `DiscordNotificationAdapter` |
 | 2-6 | RESOLVED 건너뛰기를 모든 알림으로 확장. 지금은 Loki만 건너뛴다(`isResolvedApplicationErrorLog`). 1-1이 빠졌을 때를 대비한 방어 | `DiscordNotificationAdapter.notify` |
 | 2-7 | `alert.message.meta-fields` 설정 추가 (3장) | `application.yml` |
@@ -168,7 +167,7 @@ private fun metaLine(event: AlertEvent): String? =
 
 - `OCI_MONITORING`, `OCI_COST`는 title 바로 다음 줄에 `severity: X`가 붙는다
 - 첫 줄이 `**{title}**`이다
-- title에 `*`, `_`가 들어가도 이스케이프되어 굵게 표시가 깨지지 않는다
+- title에 `*`, `_`가 들어가도 이스케이프되어 서식이 적용되지 않는다
 - description이 `null`이거나 `""`이면 빈 줄 없이 다음 요소가 이어진다
 - 메시지에 이모지, `[FIRING]`, `<@&`가 없다
 
@@ -190,7 +189,7 @@ private fun metaLine(event: AlertEvent): String? =
 ### 서비스팀 app 채널 (`*-app-alert`, `*-dev-app-alert`)
 
 ````
-**Error log detected in snutt-prod/snutt-ev-web-856d56f5ff-j8crv**
+Error log detected in snutt-prod/snutt-ev-web-856d56f5ff-j8crv
 ```
 2026-09-25 14:05:01 ERROR c.w.s.EvController - NullPointerException: ...
 ```
@@ -202,7 +201,7 @@ private fun metaLine(event: AlertEvent): String? =
 K8s Pod 실패:
 
 ````
-**[Pod Failed] hangsha-prod/hangsha-crawler-29824020-6kzqn**
+[Pod Failed] hangsha-prod/hangsha-crawler-29824020-6kzqn
 ```
 Namespace: hangsha-prod
 Name:      hangsha-crawler-29824020-6kzqn
@@ -219,7 +218,7 @@ Container:
 K8s CronJob 실패:
 
 ````
-**[Job Failed] snutt-prod/snutt-sync**
+[Job Failed] snutt-prod/snutt-sync
 ```
 Namespace:      snutt-prod
 CronJob:        snutt-sync
@@ -233,12 +232,12 @@ CompletionTime: -
 Prometheus 파드 메모리, PVC:
 
 ```
-**Pod hangsha-prod/hangsha-api-7f9c8d-x2k4p near memory limit**
+Pod hangsha-prod/hangsha-api-7f9c8d-x2k4p near memory limit
 hangsha-prod/hangsha-api-7f9c8d-x2k4p memory at 96.3% of limit for 30m.
 ```
 
 ```
-**PVC allclear-prod/data-mysql-0 storage high**
+PVC allclear-prod/data-mysql-0 storage high
 allclear-prod/data-mysql-0 at 91.2% for 5m.
 ```
 
@@ -247,7 +246,7 @@ allclear-prod/data-mysql-0 at 91.2% for 5m.
 `k8s-alert` (노드):
 
 ````
-**[Node Added] 10.0.10.123**
+[Node Added] 10.0.10.123
 ```
 Name:         10.0.10.123
 Status:       NotReady
@@ -259,19 +258,19 @@ ObservedAt:   2026-09-25 14:10:00 KST (Node Added)
 `prometheus-alert` (노드, MySQL):
 
 ```
-**Node 10.0.10.5:9100 memory usage high**
+Node 10.0.10.5:9100 memory usage high
 Node 10.0.10.5:9100 memory at 92.4% for 5m.
 ```
 
 ```
-**MySQL slow queries high**
+MySQL slow queries high
 23 slow queries in last 10m (threshold 10) on 10.0.1.20:9104.
 ```
 
 ### oci-monitoring 채널
 
 ```
-**MySQL CPU utilization high**
+MySQL CPU utilization high
 severity: WARNING
 wafflestudio-mysql CPU utilization is 85.3% (threshold: 80.0%).
 조회 범위: 2026-09-25 13:44:00 ~ 2026-09-25 14:00:00 KST
@@ -282,7 +281,7 @@ wafflestudio-mysql CPU utilization is 85.3% (threshold: 80.0%).
 일일 비용 급증:
 
 ```
-**OCI 일일 비용 급증**
+OCI 일일 비용 급증
 severity: WARNING
 2026-09-23 비용 1.52 SGD (약 1,596원) (전일 1.10 SGD (약 1,155원) 대비 1.38배)
 
@@ -292,7 +291,7 @@ severity: WARNING
 주간 요약:
 
 ```
-**OCI 비용 주간 요약**
+OCI 비용 주간 요약
 severity: INFO
 [주별 추이 (최근 4주)]
   08/25~08/31: 7.20 SGD (약 7,560원)

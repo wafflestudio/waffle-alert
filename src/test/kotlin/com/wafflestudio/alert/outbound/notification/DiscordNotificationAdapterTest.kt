@@ -125,7 +125,7 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `메시지는 굵은 title과 description만으로 이뤄지고 이모지, status, 메타 줄은 붙지 않는다`() {
+    fun `메시지는 title과 description만으로 이뤄지고 이모지, status, 메타 줄은 붙지 않는다`() {
         val event =
             baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(
                 title = "Pod siksha-prod/siksha-api-abc near memory limit",
@@ -136,7 +136,7 @@ class DiscordNotificationAdapterTest {
         adapter.notify(event)
 
         assertEquals(
-            "**Pod siksha-prod/siksha-api-abc near memory limit**\n" +
+            "Pod siksha-prod/siksha-api-abc near memory limit\n" +
                 "siksha-prod/siksha-api-abc memory at 96.3% of limit for 30m.",
             sentContent.captured,
         )
@@ -148,7 +148,7 @@ class DiscordNotificationAdapterTest {
 
         adapter.notify(event)
 
-        assertTrue(sentContent.captured.startsWith("**"))
+        assertTrue(sentContent.captured.startsWith("siksha-prod error log detected"))
         assertTrue(!sentContent.captured.contains("<@&"))
     }
 
@@ -161,7 +161,7 @@ class DiscordNotificationAdapterTest {
         adapter.notify(event)
 
         assertEquals(
-            "**siksha-prod error log detected**\n" +
+            "siksha-prod error log detected\n" +
                 "```\nERROR something broke\n```\n" +
                 "🔗 [View full logs in Grafana](https://grafana.wafflestudio.com/explore?x)",
             sentContent.captured,
@@ -169,12 +169,12 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `title의 마크다운 문자는 이스케이프해서 굵게 표시가 깨지지 않는다`() {
+    fun `title의 마크다운 문자는 이스케이프해서 서식이 적용되지 않는다`() {
         val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod").copy(title = "a*b_c `d`")
 
         adapter.notify(event)
 
-        assertEquals("**a\\*b\\_c \\`d\\`**", sentContent.captured)
+        assertEquals("a\\*b\\_c \\`d\\`", sentContent.captured)
     }
 
     @Test
@@ -193,7 +193,7 @@ class DiscordNotificationAdapterTest {
 
         verify { adapter.sendMessage("channel-6", any()) }
         assertEquals(
-            "**OCI 일일 비용 급증**\n" +
+            "OCI 일일 비용 급증\n" +
                 "severity: CRITICAL\n" +
                 "2026-09-23 비용 3.00 SGD (전일 1.00 SGD 대비 3.00배)",
             sentContent.captured,
@@ -212,7 +212,7 @@ class DiscordNotificationAdapterTest {
 
         adapter.notify(event)
 
-        assertEquals("**t**\nseverity: WARNING · service: siksha-prod · resource: siksha-api-abc", sentContent.captured)
+        assertEquals("t\nseverity: WARNING · service: siksha-prod · resource: siksha-api-abc", sentContent.captured)
     }
 
     @Test
@@ -222,7 +222,7 @@ class DiscordNotificationAdapterTest {
 
         adapter.notify(event)
 
-        assertEquals("**t**", sentContent.captured)
+        assertEquals("t", sentContent.captured)
     }
 
     @Test
@@ -314,7 +314,7 @@ class DiscordNotificationAdapterTest {
 
         verify { adapter.sendMessage("channel-5", any()) }
         assertEquals(
-            "**MySQL CPU utilization high**\n" +
+            "MySQL CPU utilization high\n" +
                 "severity: WARNING\n" +
                 "wafflestudio-mysql CPU utilization is 85.3% (threshold: 80.0%).\n" +
                 "조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST",

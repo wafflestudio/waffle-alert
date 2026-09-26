@@ -88,13 +88,13 @@ class DiscordNotificationAdapter(
         }
 
     /**
-     * 메시지는 굵은 title -> 메타 줄(설정에서 켠 필드만) -> description -> 추가 첨부 순서다.
+     * 메시지는 title -> 메타 줄(설정에서 켠 필드만) -> description -> 추가 첨부 순서다.
      * namespace와 리소스 이름은 title에 들어 있어야 한다 (AlertEvent.title 참고).
      */
     private fun formatMessage(event: AlertEvent): String {
         val base =
             buildString {
-                append("**${event.title.escapeMarkdown()}**")
+                append(event.title.escapeMarkdown())
                 metaLine(event)?.let { append("\n$it") }
                 event.description?.takeUnless { it.isBlank() }?.let { append("\n$it") }
                 event.queryWindowLine()?.let { append("\n$it") }
@@ -127,8 +127,8 @@ class DiscordNotificationAdapter(
             ?.joinToString(" · ")
 
     /**
-     * title을 `**`로 감싸기 전에 Discord 마크다운 문자를 이스케이프한다. Prometheus/Loki summary에는
-     * 라벨 값이 그대로 들어오므로, 거기에 `*`나 `_`가 섞여도 굵게 표시가 깨지지 않게 한다.
+     * title의 Discord 마크다운 문자를 이스케이프한다. Prometheus/Loki summary에는 라벨 값이 그대로
+     * 들어오므로, 거기에 `*`나 `_`가 섞여도 기울임·굵게 같은 서식이 적용되지 않게 한다.
      */
     private fun String.escapeMarkdown(): String = replace(MARKDOWN_SPECIAL_CHARS) { "\\${it.value}" }
 

@@ -61,7 +61,7 @@ interface NotificationPort {
 ```
 
 - `AlertIncident` 파라미터 제거. `AlertEvent` 하나만 받는다.
-- 메시지 포맷팅(`formatMessage`)은 어댑터 내부에서 `AlertEvent` 필드로 조립한다. 순서는 굵은 `title` → 메타 줄 → `description` → 추가 첨부(Loki 로그·Grafana 링크, OCI 조회 범위).
+- 메시지 포맷팅(`formatMessage`)은 어댑터 내부에서 `AlertEvent` 필드로 조립한다. 순서는 `title` → 메타 줄 → `description` → 추가 첨부(Loki 로그·Grafana 링크, OCI 조회 범위).
   - 메타 줄(`severity`/`service`/`resource`)은 `alert.message.meta-fields`에서 켠 필드만 보인다. 기본은 모두 꺼져 있고 `OCI_MONITORING`, `OCI_COST`만 `severity`를 켠다.
   - 이모지, status 텍스트, 멘션은 붙이지 않는다. `RESOLVED`는 보내지 않는다.
   - 그래서 `title`에 namespace와 리소스 이름이 들어 있어야 한다.
