@@ -89,10 +89,15 @@ RESOLVED면 건너뜀 → 채널 결정 → [mute 확인] → 메시지 조립 �
 - waffle-alert가 이미 쓰는 봇 토큰으로 Gateway(WebSocket)에 연결한다. JDA를 쓴다.
   - 외부 노출(VirtualService, TLS)이 필요 없다. waffle-alert가 Discord로 연결을 먼저 연다.
   - 디코코(`discord-bot` namespace)와는 다른 봇이라 서로 영향이 없다.
-  - `JDABuilder.createLight` + `GUILDS` intent만 쓴다. 멤버/메시지 캐시가 필요 없어서 메모리
-    증가를 최소화한다. voice 전용 의존성(`opus-java`, `tink`)은 뺀다.
-- 명령어는 `discord.guild-id` 서버에만 등록한다(서버 단위 등록은 즉시 반영된다). 봇이
-  `applications.commands` 권한으로 초대돼 있어야 한다.
+  - `JDABuilder.createLight`에 추가 intent 없이 연결한다(GUILDS는 JDA가 항상 보낸다). 멤버/메시지
+    캐시가 필요 없어서 메모리 증가를 최소화한다. voice 전용 의존성(`opus-java`, `tink`)은 뺀다.
+  - **연결 실패가 알림을 막지 않게 한다.** JDA의 `build()`는 토큰 확인을 위해 Discord REST를 동기로
+    호출하고 실패하면 예외를 던진다. 빈 생성 중에 연결하면 Discord 장애만으로 앱이 뜨지 않으므로,
+    앱이 뜬 뒤(`ApplicationReadyEvent`) 별도 스레드에서 연결하고 실패하면 backoff(5초~5분)로 다시
+    시도한다(`DiscordGateway`).
+- 명령어는 `discord.guild-id` 서버에만 등록한다(서버 단위 등록은 즉시 반영된다). 비어 있으면
+  global로 등록한다. 등록할 때 반대쪽 범위의 이전 등록은 지워서, guild-id를 바꿔도 명령어가 두 번
+  보이지 않게 한다. 봇이 `applications.commands` 권한으로 초대돼 있어야 한다.
 - `alert.mute.enabled`로 켜고 끈다. 기본은 꺼져 있고 prod 프로파일에서만 켠다. 로컬과 테스트는
   실제 Discord에 연결하지 않는다.
 

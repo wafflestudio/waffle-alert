@@ -19,21 +19,31 @@ class MuteCommandListener(
 ) : ListenerAdapter() {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * 명령어를 guild-id 서버(비어 있으면 global)에 등록하고, 반대쪽 범위에 남아 있을 수 있는 이전 등록은
+     * 지운다. guild-id를 나중에 채우거나 비우면 같은 명령어가 두 번 보이는 것을 막는다.
+     */
     override fun onReady(event: ReadyEvent) {
+        val jda = event.jda
         val guildId = discordProperties.guildId
-        val update =
-            if (guildId.isBlank()) {
-                event.jda.updateCommands()
-            } else {
-                event.jda.getGuildById(guildId)?.updateCommands() ?: run {
-                    log.warn("Bot is not in guild {}, skip registering /mute commands", guildId)
-                    return
-                }
+        if (guildId.isBlank()) {
+            jda.updateCommands().addCommands(COMMANDS).queue(
+                { log.info("Registered /mute commands globally") },
+                { log.error("Failed to register /mute commands globally", it) },
+            )
+            jda.guilds.forEach { it.updateCommands().queue() }
+            return
+        }
+        val guild =
+            jda.getGuildById(guildId) ?: run {
+                log.warn("Bot is not in guild {}, skip registering /mute commands", guildId)
+                return
             }
-        update.addCommands(COMMANDS).queue(
-            { log.info("Registered /mute commands (guildId={})", guildId.ifBlank { "global" }) },
+        guild.updateCommands().addCommands(COMMANDS).queue(
+            { log.info("Registered /mute commands (guildId={})", guildId) },
             { log.error("Failed to register /mute commands (guildId={})", guildId, it) },
         )
+        jda.updateCommands().queue()
     }
 
     override fun onSlashCommandInteraction(event: SlashCommandInteractionEvent) {
@@ -43,44 +53,35 @@ class MuteCommandListener(
             event.reply("This command only works in alert channels.").setEphemeral(true).queue()
             return
         }
-        val userId = event.user.id
 
         // 응답(defer)을 먼저 해서 성공한 쪽만 처리한다. 배포 중 파드가 2개면 같은 명령어가 두 번 오는데,
         // Discord는 interaction 하나에 한 번만 응답을 받는다.
         event.deferReply(true).queue(
             { hook ->
                 val reply =
-                    runCatching {
-                        when (event.name) {
-                            MUTE -> {
-                                val duration = MuteDuration.fromLabel(event.getOption(DURATION)?.asString)
-                                if (duration == null) {
-                                    "Unknown duration."
-                                } else {
-                                    handler.mute(channelId, userId, duration, event.getOption(KEYWORD)?.asString)
-                                    "Done."
-                                }
-                            }
-                            else ->
-                                if (handler.unmute(
-                                        channelId,
-                                        userId,
-                                        event.getOption(TARGET)?.asString,
-                                    )
-                                ) {
-                                    "Done."
-                                } else {
-                                    "No active mute found."
-                                }
-                        }
-                    }.getOrElse {
+                    runCatching { handle(event, channelId) }.getOrElse {
                         log.error("Failed to handle /{} (channelId={})", event.name, channelId, it)
                         "Failed. Please try again."
                     }
                 hook.editOriginal(reply).queue()
             },
-            { log.info("/{} was acknowledged elsewhere, skip (channelId={})", event.name, channelId) },
+            { log.info("Could not acknowledge /{}, skip (channelId={}): {}", event.name, channelId, it.message) },
         )
+    }
+
+    /** @return 입력한 사람에게만 보이는 응답 문구. */
+    private fun handle(
+        event: SlashCommandInteractionEvent,
+        channelId: String,
+    ): String {
+        val userId = event.user.id
+        if (event.name == UNMUTE) {
+            val unmuted = handler.unmute(channelId, userId, event.getOption(TARGET)?.asString)
+            return if (unmuted) "Done." else "No active mute found."
+        }
+        val duration = MuteDuration.fromLabel(event.getOption(DURATION)?.asString) ?: return "Unknown duration."
+        handler.mute(channelId, userId, duration, event.getOption(KEYWORD)?.asString)
+        return "Done."
     }
 
     override fun onCommandAutoCompleteInteraction(event: CommandAutoCompleteInteractionEvent) {
