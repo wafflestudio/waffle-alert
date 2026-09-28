@@ -6,6 +6,8 @@ import com.wafflestudio.alert.config.MetaField
 import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
+import com.wafflestudio.alert.domain.mute.MuteRule
+import com.wafflestudio.alert.domain.mute.MuteService
 import com.wafflestudio.alert.outbound.notification.routing.ChannelType
 import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
 import com.wafflestudio.alert.source.loki.LokiClient
@@ -23,6 +25,7 @@ class DiscordNotificationAdapter(
     private val lokiClient: LokiClient,
     private val routingPolicy: RoutingPolicy,
     private val messageFormatProperties: MessageFormatProperties,
+    private val muteService: MuteService,
 ) : NotificationPort {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -44,8 +47,26 @@ class DiscordNotificationAdapter(
             return false
         }
 
+        // /mute로 이 채널에 건 mute에 title이 걸리면 보내지 않는다. 메시지를 만들기 전에 확인해서
+        // mute된 Loki alert는 로그 조회도 하지 않는다. "처리됨"으로 보고 true를 돌려준다.
+        mutedBy(channelId, event)?.let {
+            log.info("Muted, skip notify (channelId={}, muteId={}, fingerprint={})", channelId, it.id, event.fingerprint)
+            return true
+        }
+
         return sendMessage(channelId, formatMessage(event))
     }
+
+    /** mute 확인이 실패하면(DB 오류 등) mute가 없는 것으로 본다 - 알림이 사라지는 쪽보다 낫다. */
+    private fun mutedBy(
+        channelId: String,
+        event: AlertEvent,
+    ): MuteRule? =
+        runCatching { muteService.findMatching(channelId, event.title) }
+            .getOrElse {
+                log.warn("Failed to check mute, send anyway (channelId={}, fingerprint={})", channelId, event.fingerprint, it)
+                null
+            }
 
     /** Loki 기반 애플리케이션 에러 로그만 APPLICATION, 그 외(Prometheus/K8s/OCI)는 WORKLOAD. */
     private fun channelTypeOf(event: AlertEvent): ChannelType =
