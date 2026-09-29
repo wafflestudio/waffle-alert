@@ -24,7 +24,7 @@ server:
   port: 8080
 
 discord:
-  guild-id: ""                      # /mute 명령어를 등록할 서버. 비우면 global 명령어로 등록
+  guild-id: "1496684926437691392"   # 와플스튜디오 서버. /mute 명령어를 이 서버에만 등록 (비우면 global)
   channel-ids:
     prometheus-alert: 1525123803284242512
     oci-cost: 1525123822322188308
