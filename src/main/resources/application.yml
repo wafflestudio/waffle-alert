@@ -24,6 +24,7 @@ server:
   port: 8080
 
 discord:
+  guild-id: "1496684926437691392"   # 와플스튜디오 서버. /mute 명령어를 이 서버에만 등록 (비우면 global)
   channel-ids:
     prometheus-alert: 1525123803284242512
     oci-cost: 1525123822322188308
@@ -109,6 +110,10 @@ alert:
         infra: snuclear-infra-alert
       snuclear-dev:
         app: snuclear-dev-app-alert
+  mute:
+    # /mute, /unmute 슬래시 명령어를 받는 Discord Gateway 연결. prod 프로파일에서만 켠다
+    # (로컬/테스트에서 실제 Discord에 붙지 않게). 알림 전송 전 mute 확인은 이 값과 상관없이 한다.
+    enabled: false
   message:
     # Discord 메시지에서 title 바로 아래 메타 줄에 보여줄 필드 (severity, service, resource).
     # 기본은 아무것도 안 보여주고, 필요한 source만 켠다 (MessageFormatProperties 참고).

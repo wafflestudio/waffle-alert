@@ -71,6 +71,13 @@ dependencies {
     implementation("com.oracle.oci.sdk:oci-java-sdk-usageapi:${property("ociSdkVersion")}")
     implementation("com.oracle.oci.sdk:oci-java-sdk-common-httpclient-jersey3:${property("ociSdkVersion")}")
 
+    // ── Discord Gateway (/mute, /unmute 슬래시 명령어) ──
+    // 명령어 이벤트만 받는다. voice 전용 의존성은 뺀다.
+    implementation("net.dv8tion:JDA:6.7.0") {
+        exclude(module = "opus-java")
+        exclude(module = "tink")
+    }
+
     // ── 알림 전송 재시도 / circuit breaker ───────────
     implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
 

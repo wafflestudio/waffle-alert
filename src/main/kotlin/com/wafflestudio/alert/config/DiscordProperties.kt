@@ -9,4 +9,7 @@ import org.springframework.context.annotation.Configuration
 class DiscordProperties {
     var botToken: String = ""
     var channelIds: Map<String, String> = emptyMap()
+
+    /** /mute 명령어를 등록할 서버. 비어 있으면 global 명령어로 등록한다. */
+    var guildId: String = ""
 }

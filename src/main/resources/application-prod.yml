@@ -16,6 +16,8 @@ discord:
   bot-token:                      # Vault 주입
 
 alert:
+  mute:
+    enabled: true                 # Discord Gateway 연결 (/mute, /unmute)
   oci:
     auth-type: instance_principal # Kubernetes Pod의 Instance Principal 사용
     tenant-id:                    # Vault 주입 또는 고정 OCID

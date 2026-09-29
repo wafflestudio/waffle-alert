@@ -7,6 +7,8 @@ import com.wafflestudio.alert.domain.model.AlertEvent
 import com.wafflestudio.alert.domain.model.AlertSource
 import com.wafflestudio.alert.domain.model.AlertStatus
 import com.wafflestudio.alert.domain.model.Severity
+import com.wafflestudio.alert.domain.mute.MuteRule
+import com.wafflestudio.alert.domain.mute.MuteService
 import com.wafflestudio.alert.outbound.notification.routing.RoutingPolicy
 import com.wafflestudio.alert.outbound.notification.routing.TeamChannels
 import com.wafflestudio.alert.outbound.notification.routing.TeamMappingConfig
@@ -68,6 +70,10 @@ class DiscordNotificationAdapterTest {
                 )
         }
     private val lokiClient = mockk<LokiClient>()
+    private val muteService =
+        mockk<MuteService> {
+            every { findMatching(any(), any()) } returns null
+        }
     private val sentContent = slot<String>()
     private val adapter =
         spyk(
@@ -77,6 +83,7 @@ class DiscordNotificationAdapterTest {
                 lokiClient,
                 routingPolicy,
                 messageFormatProperties,
+                muteService,
             ),
         ) {
             every { sendMessage(any(), capture(sentContent)) } returns true
@@ -320,6 +327,40 @@ class DiscordNotificationAdapterTest {
                 "조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST",
             sentContent.captured,
         )
+    }
+
+    @Test
+    fun `이 채널에 걸린 mute에 title이 걸리면 보내지 않고 처리됨으로 본다`() {
+        val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "siksha-prod")
+        every { muteService.findMatching("channel-3", event.title) } returns
+            MuteRule("channel-3", "siksha", Instant.parse("2026-08-15T01:00:00Z"), "user-1", event.observedAt)
+
+        val result = adapter.notify(event)
+
+        assertTrue(result)
+        verify(exactly = 0) { lokiClient.fetchLogLines(any(), any()) }
+        verify(exactly = 0) { adapter.sendMessage(any(), any()) }
+    }
+
+    @Test
+    fun `mute는 알림이 실제로 갈 채널 기준으로 확인한다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "unmapped-prod")
+
+        adapter.notify(event)
+
+        verify { muteService.findMatching("channel-1", event.title) }
+        verify { adapter.sendMessage("channel-1", any()) }
+    }
+
+    @Test
+    fun `mute 확인이 실패해도 알림은 보낸다`() {
+        val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-prod")
+        every { muteService.findMatching(any(), any()) } throws IllegalStateException("db down")
+
+        val result = adapter.notify(event)
+
+        assertTrue(result)
+        verify { adapter.sendMessage("channel-4", any()) }
     }
 
     private fun baseEvent(
