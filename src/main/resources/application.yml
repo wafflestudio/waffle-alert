@@ -66,8 +66,8 @@ alert:
     # (ApplicationErrorLog), infra는 Prometheus/K8s watch 등 워크로드 alert (RoutingPolicy,
     # ChannelType 참고). 매핑에 없는 namespace/channelType은 소스 기준 기본 채널로 폴백한다.
     #
-    # dev namespace는 app 채널만 등록한다(팀 요청 - infra alert는 이번 범위 밖). infra 매핑이
-    # 없는 dev namespace의 워크로드 alert는 소스 기준 기본 채널로 폴백한다.
+    # dev namespace의 app은 팀의 dev 전용 채널(*-dev-app-alert)로, infra는 따로 나누지 않고
+    # prod와 같은 팀 infra 채널(*-infra-alert)로 보낸다.
     namespaces:
       waffle-alert-prod:
         app: app-alert
@@ -80,36 +80,43 @@ alert:
         infra: waffice-infra-alert
       waffice-dev:
         app: waffice-dev-app-alert
+        infra: waffice-infra-alert
       wacruit-prod:
         app: wacruit-app-alert
         infra: wacruit-infra-alert
       wacruit-dev:
         app: wacruit-dev-app-alert
+        infra: wacruit-infra-alert
       snutt-prod:
         app: snutt-app-alert
         infra: snutt-infra-alert
       snutt-dev:
         app: snutt-dev-app-alert
+        infra: snutt-infra-alert
       siksha-prod:
         app: siksha-app-alert
         infra: siksha-infra-alert
       siksha-dev:
         app: siksha-dev-app-alert
+        infra: siksha-infra-alert
       allclear-prod:
         app: allclear-app-alert
         infra: allclear-infra-alert
       allclear-dev:
         app: allclear-dev-app-alert
+        infra: allclear-infra-alert
       hangsha-prod:
         app: hangsha-app-alert
         infra: hangsha-infra-alert
       hangsha-dev:
         app: hangsha-dev-app-alert
+        infra: hangsha-infra-alert
       snuclear-prod:
         app: snuclear-app-alert
         infra: snuclear-infra-alert
       snuclear-dev:
         app: snuclear-dev-app-alert
+        infra: snuclear-infra-alert
   mute:
     # /mute, /unmute 슬래시 명령어를 받는 Discord Gateway 연결. prod 프로파일에서만 켠다
     # (로컬/테스트에서 실제 Discord에 붙지 않게). 알림 전송 전 mute 확인은 이 값과 상관없이 한다.
