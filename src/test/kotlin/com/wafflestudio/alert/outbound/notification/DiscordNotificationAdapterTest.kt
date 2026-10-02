@@ -294,7 +294,7 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `dev namespace는 infra 매핑이 없어 워크로드 alert는 infra-alert로 보낸다`() {
+    fun `infra 매핑이 없는 namespace의 워크로드 alert는 infra-alert로 보낸다`() {
         val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-dev")
 
         adapter.notify(event)
