@@ -26,11 +26,11 @@ server:
 discord:
   guild-id: "1496684926437691392"   # 와플스튜디오 서버. /mute 명령어를 이 서버에만 등록 (비우면 global)
   channel-ids:
-    prometheus-alert: 1525123803284242512
-    oci-cost: 1525123822322188308
-    oci-monitoring: 1525123771420377200
-    team-infra-alert: 1538228022673408001
-    k8s-alert: 1532713920232554646
+    # 공용 (infra팀)
+    app-alert: 1538228022673408001            # 매핑 없는 namespace의 Loki 에러 로그, infra팀 namespace의 app alert
+    infra-alert: 1532713920232554646          # 매핑 없는 Prometheus/K8s watch alert, 노드, infra팀 namespace의 infra alert
+    oci-resource-alert: 1525123771420377200   # OCI Monitoring
+    oci-cost-alert: 1525123822322188308       # OCI Cost
     # waffice
     waffice-app-alert: 1545815162001424384
     waffice-infra-alert: 1546753138663362610
@@ -70,11 +70,11 @@ alert:
     # 없는 dev namespace의 워크로드 alert는 소스 기준 기본 채널로 폴백한다.
     namespaces:
       waffle-alert-prod:
-        app: team-infra-alert
-        infra: team-infra-alert
+        app: app-alert
+        infra: infra-alert
       pupuri-prod:
-        app: team-infra-alert
-        infra: team-infra-alert
+        app: app-alert
+        infra: infra-alert
       waffice-prod:
         app: waffice-app-alert
         infra: waffice-infra-alert

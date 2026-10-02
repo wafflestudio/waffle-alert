@@ -73,21 +73,19 @@ class DiscordNotificationAdapter(
         if (event.isApplicationErrorLog) ChannelType.APPLICATION else ChannelType.WORKLOAD
 
     /**
-     * Loki 기반 alert(ApplicationErrorLog)는 namespace 매핑이 없으면 team-infra-alert로
-     * 보낸다 - Loki 파이프라인 자체가 infra팀 소유이고, ApplicationErrorLog 룰이 team 매핑이
-     * 안 된 시스템/미할당 네임스페이스(loki, argocd, external-secrets 등)에도 넓게 발동하는데
-     * 이걸 레거시 Prometheus metric alert용 채널(prometheus-alert)에 섞으면 안 된다.
-     * 그 외 alert(Prometheus metric, OCI 등)는 기존처럼 source 기준으로 보낸다.
+     * namespace 매핑이 없을 때의 기본 채널. infra팀 공용 채널도 서비스팀처럼 app/infra로 나눈다.
+     * Loki 에러 로그(ApplicationErrorLog)는 app-alert로, Prometheus와 K8s watch 같은 워크로드
+     * alert는 infra-alert로 보낸다 - 매핑이 안 된 시스템/미할당 네임스페이스(loki, argocd,
+     * external-secrets, 서비스팀 dev 등)의 alert가 여기로 모인다. OCI는 source별 채널로 보낸다.
      */
     private fun defaultChannelKeyFor(event: AlertEvent): String =
-        if (event.isApplicationErrorLog) "team-infra-alert" else channelKeyOf(event.source)
+        if (event.isApplicationErrorLog) APP_ALERT_CHANNEL else channelKeyOf(event.source)
 
     private fun channelKeyOf(source: AlertSource): String =
         when (source) {
-            AlertSource.ALERTMANAGER -> "prometheus-alert"
-            AlertSource.OCI_COST -> "oci-cost"
-            AlertSource.OCI_MONITORING -> "oci-monitoring"
-            AlertSource.K8S -> "k8s-alert"
+            AlertSource.ALERTMANAGER, AlertSource.K8S -> INFRA_ALERT_CHANNEL
+            AlertSource.OCI_COST -> "oci-cost-alert"
+            AlertSource.OCI_MONITORING -> "oci-resource-alert"
         }
 
     /** @return 전송 성공 여부. 예외는 여기서 삼킨다 - 호출자(워처/스케줄러)가 알림 실패로 죽으면 안 된다. */
@@ -186,6 +184,8 @@ class DiscordNotificationAdapter(
     private companion object {
         // waffle-world-oci argocd/loki/resources.yaml의 alert 이름과 반드시 일치해야 한다.
         const val LOKI_ERROR_LOG_RULE_NAME = "ApplicationErrorLog"
+        const val APP_ALERT_CHANNEL = "app-alert"
+        const val INFRA_ALERT_CHANNEL = "infra-alert"
         const val LOG_PREVIEW_LINES = 10
         const val MAX_LOG_PREVIEW_CHARS = 1200
         private const val QUERY_START_TIME_LABEL = "queryStartTime"
