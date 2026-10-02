@@ -71,9 +71,10 @@ interface NotificationPort {
 `DiscordNotificationAdapter` 내부 고정 매핑으로 처리. 팀원은 `source` 필드만 정확히 채우면 된다.
 
 - **채널**: `event.source`를 `channelKeyOf(source)`로 `discord.channel-ids`(yml)의 키 문자열로 변환 → 해당 채널 ID로 전송.
-  - `ALERTMANAGER` → `prometheus-alert`
-  - `OCI_COST` → `oci-cost`
-  - `OCI_MONITORING` → `oci-monitoring`
+  - `ALERTMANAGER`, `K8S` → `infra-alert` (2026-10 `prometheus-alert`, `k8s-alert`를 합침)
+  - `OCI_COST` → `oci-cost-alert`
+  - `OCI_MONITORING` → `oci-resource-alert`
+  - namespace 매핑이 없는 Loki 에러 로그(`ApplicationErrorLog`) → `app-alert`
 - **멘션**: 2026-09 메시지 포맷 정리 때 제거했다(`docs/discord-message-format-plan.md`). `event.team` 필드는 남아 있지만 읽는 곳은 없다.
 
 ## 5. 팀원 작업 위치 (패키지)

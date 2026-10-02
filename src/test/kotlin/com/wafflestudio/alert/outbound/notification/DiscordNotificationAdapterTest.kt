@@ -29,12 +29,12 @@ class DiscordNotificationAdapterTest {
         DiscordProperties().apply {
             channelIds =
                 mapOf(
-                    "prometheus-alert" to "channel-1",
-                    "team-infra-alert" to "channel-2",
+                    "infra-alert" to "channel-1",
+                    "app-alert" to "channel-2",
                     "siksha-app-alert" to "channel-3",
                     "siksha-infra-alert" to "channel-4",
-                    "oci-monitoring" to "channel-5",
-                    "oci-cost" to "channel-6",
+                    "oci-resource-alert" to "channel-5",
+                    "oci-cost-alert" to "channel-6",
                 )
         }
     private val routingPolicy =
@@ -44,8 +44,8 @@ class DiscordNotificationAdapterTest {
                     mapOf(
                         "waffle-alert-prod" to
                             TeamChannels().apply {
-                                app = "team-infra-alert"
-                                infra = "team-infra-alert"
+                                app = "app-alert"
+                                infra = "infra-alert"
                             },
                         "siksha-prod" to
                             TeamChannels().apply {
@@ -100,7 +100,7 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `namespace가 team-mapping에 없으면 source 기준 기본 채널로 폴백한다`() {
+    fun `namespace가 team-mapping에 없는 Prometheus alert는 infra-alert로 보낸다`() {
         val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "unmapped-prod")
 
         adapter.notify(event)
@@ -250,7 +250,7 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `ApplicationErrorLog는 namespace 매핑이 없어도 prometheus-alert가 아니라 team-infra-alert로 보낸다`() {
+    fun `namespace 매핑이 없는 ApplicationErrorLog는 app-alert로 보낸다`() {
         val event = baseEvent(ruleName = "ApplicationErrorLog", namespace = "argocd")
         every { lokiClient.fetchLogLines(any(), any()) } returns emptyList()
         every { lokiClient.grafanaExploreUrl(any(), any()) } returns null
@@ -294,7 +294,7 @@ class DiscordNotificationAdapterTest {
     }
 
     @Test
-    fun `dev namespace는 infra 매핑이 없어 워크로드 alert는 소스 기본 채널로 폴백한다`() {
+    fun `dev namespace는 infra 매핑이 없어 워크로드 alert는 infra-alert로 보낸다`() {
         val event = baseEvent(ruleName = "PodMemoryLimitHigh", namespace = "siksha-dev")
 
         adapter.notify(event)
@@ -327,6 +327,24 @@ class DiscordNotificationAdapterTest {
                 "조회 범위: 2026-07-12 09:49:00 ~ 2026-07-12 10:05:00 KST",
             sentContent.captured,
         )
+    }
+
+    @Test
+    fun `namespace 매핑이 없는 K8s watch alert도 infra-alert로 보낸다`() {
+        val event = baseEvent(ruleName = "K8sPodFailed", namespace = "argocd").copy(source = AlertSource.K8S)
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-1", any()) }
+    }
+
+    @Test
+    fun `OCI Cost는 oci-cost-alert로 보낸다`() {
+        val event = baseEvent(ruleName = "oci-cost-spike", namespace = "unused").copy(source = AlertSource.OCI_COST, service = null)
+
+        adapter.notify(event)
+
+        verify { adapter.sendMessage("channel-6", any()) }
     }
 
     @Test

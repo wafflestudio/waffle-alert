@@ -82,7 +82,7 @@ RESOLVED면 건너뜀 → 채널 결정 → [mute 확인] → 메시지 조립 �
 - mute됐으면 전송하지 않고 `true`(처리됨)를 반환한다. K8s 파드 알림은 이 값을 보고 alert-count를
   올리므로, mute가 풀린 뒤 같은 파드에 대해 다시 알림이 오지 않는다. 이미 인지한 장애라 자연스럽다.
 - mute 확인이 실패하면(DB 오류 등) mute가 없는 것으로 보고 보낸다. 알림이 사라지는 쪽보다 낫다.
-- 채널 ID 기준이라 공용 채널(k8s-alert, oci-cost 등)에도 그대로 동작한다.
+- 채널 ID 기준이라 공용 채널(infra-alert, oci-cost-alert 등)에도 그대로 동작한다.
 
 ## 5. Discord 연동
 
